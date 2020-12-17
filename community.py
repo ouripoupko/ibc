@@ -1,0 +1,4 @@
+
+
+class Community:
+  pass
