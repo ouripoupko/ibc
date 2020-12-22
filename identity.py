@@ -1,4 +1,0 @@
-
-
-class Identity:
-  pass
