@@ -15,3 +15,5 @@ class Partner:
   def call(self, params):
     return requests.post(self.addr + 'contract/', json = {'from': self.me, 'to': self.pid, 'msg': params}).json()
 
+  def addContract(self, contract):
+    reply = requests.get(self.addr + 'partner/', json = {'from': self.me, 'to': self.pid, 'msg': {'contract': contract}}).json()

@@ -1,7 +1,7 @@
 import json
 import requests
 
-f = open('csr.py','r')
+f = open('CSR.py','r')
 csr = f.read()
 f.close()
 

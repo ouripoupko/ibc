@@ -6,5 +6,7 @@ class Network:
     self.me = me
     self.partners = {}
     
-  def addPartner(self, addr, pid):
-    self.partners[pid] = Partner(addr, pid, self.me)
+  def addPartner(self, addr, pid, contract):
+    if pid not in self.partners:
+      self.partners[pid] = Partner(addr, pid, self.me)
+    self.partners[pid].addContract(contract)

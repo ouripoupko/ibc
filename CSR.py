@@ -11,7 +11,8 @@ class CSR:
     return self.network.partners[data['id']].call({'name':'CSR', 'method':'addEdge', 'param':{'id':self.network.me}})
 
   def addEdge(self, data):
-    return {'reply': 'addEdge called'}
+    self.community.append((data['id'],network.me))
+    return {'edges': self.edges}
     
   def removeEdge(self, data):
     return {'reply': 'addEdge called'}

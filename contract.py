@@ -12,7 +12,11 @@ class Contract:
     return {'msg': 'contract {} is running!'.format(self.name)}
     
   def call(self, method, param):
-    return getattr(self.obj, method)(param)
+    m = getattr(self.obj, method)
+    print(m)
+    reply = m(param)
+    print(reply)
+    return (reply)
     
   def connect(self, address, partner_id):
     self.partners.append((partner_id, address))

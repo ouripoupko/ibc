@@ -10,7 +10,10 @@ class State:
     contract = Contract(name, code)
     self.contracts[name] = contract
     return contract.run(network)
-    
+  
+  def get(self, name):
+    return self.contracts.get(name)
+      
   def trigger(self, msg):
     pass
     
