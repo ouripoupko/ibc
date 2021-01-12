@@ -1,26 +1,24 @@
-
-
 class CSR:
 
-  def __init__(self, network):
-    self.community = []
-    self.edges = []
-    self.network = network
+    def __init__(self, network):
+        self.community = []
+        self.edges = []
+        self.network = network
 
-  def triggerEdge(self, data):
-    return self.network.partners[data['id']].call({'name':'CSR', 'method':'addEdge', 'param':{'id':self.network.me}})
+    def trigger_edge(self, data):
+        return self.network.partners[data['id']].call(
+          {'name': 'CSR', 'method': 'addEdge', 'param': {'id': self.network.me}})
 
-  def addEdge(self, data):
-    self.community.append((data['id'],network.me))
-    return {'edges': self.edges}
-    
-  def removeEdge(self, data):
-    return {'reply': 'addEdge called'}
-    
-  def addMember(self, data):
-    self.community.append(data['id'])
-    return {'community': self.community}
-    
-  def removeMember(self, data):
-    return {'reply': 'addEdge called'}
+    def add_edge(self, data):
+        self.community.append((data['id'], self.network.me))
+        return {'edges': self.edges}
 
+#    def remove_edge(self, data):
+#        return {'reply': 'addEdge called'}
+
+    def add_member(self, data):
+        self.community.append(data['id'])
+        return {'community': self.community}
+
+#    def remove_member(self, data):
+#        return {'reply': 'addEdge called'}

@@ -1,4 +1,2 @@
-
-
 class Chain:
-  pass
+    pass

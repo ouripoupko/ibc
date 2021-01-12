@@ -1,4 +1,2 @@
-
-
 class Block:
-  pass
+    pass
