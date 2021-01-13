@@ -2,13 +2,40 @@ import sys
 from flask import Flask, request, Response, send_from_directory
 from state import State
 from blockchain import BlockChain
-from network import Network
 
 # Create the application instance
 app = Flask(__name__)
-state = State()
-chain = BlockChain()
-network = None
+
+
+class IBC:
+    def __init__(self, pid):
+        self.state = State()
+        self.chain = BlockChain()
+        self.me = pid
+
+    def handle_contract(self, record):
+        params = record['params']
+        if record['type'] == 'GET':
+            return self.chain.get(params['contract'])
+        elif record['type'] == 'PUT':
+            self.chain.log(record)
+            return self.state.add(params['contract'], params['msg'])
+        elif record['type'] == 'POST':
+            self.chain.log(record)
+            return self.state.call(params['msg'])
+
+    def handle_partner(self, record):
+        params = record['params']
+        if record['type'] == 'PUT':
+            if not params.get('from'):
+                self.state.join(ibc, params['contract'], params['msg'])
+            else:
+                contract = self.state.get(params['contract'])
+                contract.add_partner(params['msg'])
+        return {'reply': 'hello world'}
+
+
+ibc = None
 
 
 @app.route('/favicon.ico')
@@ -26,26 +53,15 @@ def view():  # pragma: no cover
 
 
 # Create a URL route in our application for contracts
-#  get contract    - receive its state? not sure yet
+#  get contract    - receive the contract's transaction history
 #  put contract    - create a new contract with the given code
 #  post contract   - interact with a contract by executing a method
 #  delete contract - mark it terminated (history cannot be deleted)
 @app.route('/contract/', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def contract_handler():
-    if request.method == 'GET':
-        print(request.get_json())
-        return "hello world"
     params = request.get_json()
-    if request.method == 'PUT':
-        chain.log('CREATE', params)
-        return state.add(params['name'], params['code'], network)
-    elif request.method == 'POST':
-        if not params.get('from'):
-            print(params)
-            chain.log('TRIGGER', params)
-        else:
-            chain.log('INPUT', params)
-        return state.call(params['msg'])
+    record = {'type': request.method, 'params': params}
+    return ibc.handle_contract(record)
 
 
 # Create a URL route in our application for partners
@@ -54,16 +70,12 @@ def contract_handler():
 @app.route('/partner/', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def partner_handler():
     params = request.get_json()
-    if request.method == 'PUT':
-        contract = state.get(params['contract'])
-        network.add_partner(params['address'], params['id'], contract)
-        if params.get('from'):
-            return chain.getHistory(contract)
-    return {'partners': str(network.partners)}
+    record = {'type': request.method, 'params': params}
+    return ibc.handle_partner(record)
 
 
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
     me = sys.argv[1]
-    network = Network(me)
+    ibc = IBC(me)
     app.run(debug=True, port=me, threaded=False)

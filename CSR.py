@@ -1,9 +1,8 @@
 class CSR:
 
-    def __init__(self, network):
+    def __init__(self):
         self.community = []
         self.edges = []
-        self.network = network
 
     def trigger_edge(self, data):
         return self.network.partners[data['id']].call(
