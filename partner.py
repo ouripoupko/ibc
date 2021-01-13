@@ -16,3 +16,10 @@ class Partner:
     def add_contract(self, contract):
         return requests.get(self.address + 'partner/',
                             json={'from': self.me, 'to': self.pid, 'msg': {'contract': contract}}).json()
+
+    def get_contract(self, contract):
+        return requests.get(self.address + 'contract/',
+                            json={'from': self.me, 'to': self.pid, 'contract': contract}).json()
+
+    def connect(self, name):
+        pass
