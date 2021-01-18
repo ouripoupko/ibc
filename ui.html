@@ -28,7 +28,7 @@
        xhr.setRequestHeader('Content-Type', 'application/json');
        var pathparts = document.getElementById('contractsrcfile').value.split('\\');
        var names = pathparts[pathparts.length-1].split('.');
-       xhr.send(JSON.stringify({'code': document.getElementById('contractoutput').textContent, 'name': names[0]}));
+       xhr.send(JSON.stringify({'contract': names[0], 'msg': document.getElementById('contractoutput').textContent}));
 
        xhr.onreadystatechange = function () {
          if (this.readyState != 4) return;
@@ -106,7 +106,7 @@
        xhr.setRequestHeader('Content-Type', 'application/json');
        var port = document.getElementById('partner_id').value;
        var contract = document.getElementById('partner_contract_id').value;
-       var msg = JSON.stringify({'address':'http://localhost:'.concat(port).concat('/'), 'id': port, 'contract': contract});
+       var msg = JSON.stringify({'contract': contract, 'msg':{'address':'http://localhost:'.concat(port).concat('/'), 'id': port}});
        console.log(msg);
        xhr.send(msg);
 

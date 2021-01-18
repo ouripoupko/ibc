@@ -13,13 +13,12 @@ class Partner:
     def call(self, params):
         return requests.post(self.address + 'contract/', json={'from': self.me, 'to': self.pid, 'msg': params}).json()
 
-    def add_contract(self, contract):
-        return requests.get(self.address + 'partner/',
-                            json={'from': self.me, 'to': self.pid, 'msg': {'contract': contract}}).json()
-
     def get_contract(self, contract):
-        return requests.get(self.address + 'contract/',
-                            json={'from': self.me, 'to': self.pid, 'contract': contract}).json()
+        reply = requests.get(self.address + 'partner/',
+                             json={'from': self.me, 'to': self.pid, 'contract': contract}).json()
+        return reply['reply']
 
-    def connect(self, name):
-        pass
+    def connect(self, contract, my_address):
+        return requests.put(self.address + 'partner/',
+                            json={'from': self.me, 'to': self.pid, 'contract': contract,
+                                  'msg': {'address': my_address, 'id': self.me}}).json()

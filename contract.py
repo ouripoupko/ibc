@@ -1,15 +1,12 @@
 class Contract:
-    def __init__(self, name):
+    def __init__(self, name, code):
         self.name = name
-        self.code = None
+        self.code = code
         self.partners = []
         self.obj = None
 
-    def init_from_code(self, code):
-        self.code = code
-
-    def init_from_partner(self, partner):
-        pass
+    def __repr__(self):
+        return str({'class': 'Contract', 'name': self.name, 'partners': self.partners})
 
     def run(self):
         exec(self.code)
@@ -23,11 +20,6 @@ class Contract:
         print(reply)
         return reply
 
-    def connect(self, address, partner_id):
-        self.partners.append((partner_id, address))
+    def connect(self, partner):
+        self.partners.append(partner)
 
-    def add_partner(self, message):
-        pass
-#        if message['pid'] not in self.partners:
-#            self.partners[message['pid']] = Partner(message['address'], message['pid'], self.me)
-#        self.partners[pid].add_contract(contract)

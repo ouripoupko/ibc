@@ -24,15 +24,17 @@ class IBC:
             self.chain.log(record)
             return self.state.call(params['msg'])
 
-    def handle_partner(self, record):
+    def handle_partner(self, record, my_address):
         params = record['params']
-        if record['type'] == 'PUT':
-            if not params.get('from'):
-                self.state.join(ibc, params['contract'], params['msg'])
-            else:
-                contract = self.state.get(params['contract'])
-                contract.add_partner(params['msg'])
-        return {'reply': 'hello world'}
+        print(my_address)
+        reply = {'reply': 'hello world'}
+        if record['type'] == 'GET':
+            reply = self.chain.get(params['contract'])
+        elif record['type'] == 'PUT':
+            reply = self.state.join(ibc, params['contract'], params['msg'],
+                                    my_address if not params.get('from') else None)
+        print(reply)
+        return reply
 
 
 ibc = None
@@ -53,25 +55,28 @@ def view():  # pragma: no cover
 
 
 # Create a URL route in our application for contracts
-#  get contract    - receive the contract's transaction history
+#  get contract    - receive the contract's state
 #  put contract    - create a new contract with the given code
 #  post contract   - interact with a contract by executing a method
 #  delete contract - mark it terminated (history cannot be deleted)
 @app.route('/contract/', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def contract_handler():
     params = request.get_json()
+    print(params)
     record = {'type': request.method, 'params': params}
     return ibc.handle_contract(record)
 
 
 # Create a URL route in our application for partners
+#  get contract    - receive the contract's transaction history
 #  put partner  - create a partnership by joining a contract
 #  post partner - interact with a partner to reach consensus
 @app.route('/partner/', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def partner_handler():
     params = request.get_json()
+    print(params)
     record = {'type': request.method, 'params': params}
-    return ibc.handle_partner(record)
+    return ibc.handle_partner(record, request.url)
 
 
 # If we're running in stand alone mode, run the application
