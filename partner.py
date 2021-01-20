@@ -22,3 +22,8 @@ class Partner:
         return requests.put(self.address + 'partner/',
                             json={'from': self.me, 'to': self.pid, 'contract': contract,
                                   'msg': {'address': my_address, 'id': self.me}}).json()
+
+    def consent(self, contract, step, data):
+        return requests.post(self.address + 'partner/',
+                             json={'from': self.me, 'to': self.pid, 'contract': contract,
+                                   'msg': {'step': step, 'data': data}}).json()

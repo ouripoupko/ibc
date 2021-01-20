@@ -21,8 +21,8 @@ class IBC:
             self.chain.log(record)
             return self.state.add(params['contract'], params['msg'])
         elif record['type'] == 'POST':
-            self.chain.log(record)
-            return self.state.call(params['msg'])
+            contract = self.state.get(params['contract'])
+            contract.consent(record, True)
 
     def handle_partner(self, record, my_address):
         params = record['params']
@@ -31,8 +31,22 @@ class IBC:
         if record['type'] == 'GET':
             reply = self.chain.get(params['contract'])
         elif record['type'] == 'PUT':
-            reply = self.state.join(ibc, params['contract'], params['msg'],
-                                    my_address if not params.get('from') else None)
+            if not params.get('from'):  # this is the initiator of the join request
+                reply = self.state.join(ibc, params['contract'], params['msg'], my_address)
+            else:
+                contract = self.state.get(params['contract'])
+                contract.consent(record, 'put partner')
+        elif record['type'] == 'POST':
+            contract = self.state.get(params['contract'])
+            if contract.consent(record, None):
+                (original_record, action) = contract.get_consent_result(record)
+                self.chain.log(original_record)
+                original_params = original_record['params']
+                if original_record['owner'] == 'partner' and original_record['type'] == 'PUT':
+                    reply = self.state.join(ibc, original_params['contract'], original_params['msg'], None)
+                elif original_record['owner'] == 'contract' and original_record['type'] == 'POST':
+                    reply = contract.call(original_params['msg'])
+
         print(reply)
         return reply
 
@@ -63,7 +77,7 @@ def view():  # pragma: no cover
 def contract_handler():
     params = request.get_json()
     print(params)
-    record = {'type': request.method, 'params': params}
+    record = {'owner': 'contract', 'type': request.method, 'params': params}
     return ibc.handle_contract(record)
 
 
@@ -75,7 +89,7 @@ def contract_handler():
 def partner_handler():
     params = request.get_json()
     print(params)
-    record = {'type': request.method, 'params': params}
+    record = {'owner': 'partner', 'type': request.method, 'params': params}
     return ibc.handle_partner(record, request.url)
 
 

@@ -29,7 +29,3 @@ class State:
 
     def trigger(self, msg):
         pass
-
-    def call(self, msg):
-        contract = self.contracts[msg['name']]
-        return contract.call(msg['method'], msg['param'])
