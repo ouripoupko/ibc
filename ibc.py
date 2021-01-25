@@ -13,6 +13,16 @@ class IBC:
         self.chain = BlockChain()
         self.me = pid
 
+    def commit(self, record):
+        self.chain.log(record)
+        params = record['params']
+        contract = self.state.get(params['contract'])
+        if record['owner'] == 'partner' and record['type'] == 'PUT':
+            reply = self.state.join(ibc, params['contract'], params['msg'], None)
+        elif record['owner'] == 'contract' and record['type'] == 'POST':
+            reply = contract.call(params['msg'])
+        return reply
+
     def handle_contract(self, record):
         params = record['params']
         if record['type'] == 'GET':
@@ -22,7 +32,10 @@ class IBC:
             return self.state.add(params['contract'], params['msg'])
         elif record['type'] == 'POST':
             contract = self.state.get(params['contract'])
-            contract.consent(record, True)
+            if contract.consent(record, True):
+                return self.commit(record)
+            else:
+                return {'reply': 'starting consensus protocol'}
 
     def handle_partner(self, record, my_address):
         params = record['params']
@@ -39,13 +52,8 @@ class IBC:
         elif record['type'] == 'POST':
             contract = self.state.get(params['contract'])
             if contract.consent(record, None):
-                (original_record, action) = contract.get_consent_result(record)
-                self.chain.log(original_record)
-                original_params = original_record['params']
-                if original_record['owner'] == 'partner' and original_record['type'] == 'PUT':
-                    reply = self.state.join(ibc, original_params['contract'], original_params['msg'], None)
-                elif original_record['owner'] == 'contract' and original_record['type'] == 'POST':
-                    reply = contract.call(original_params['msg'])
+                original_record = contract.get_consent_result(record)
+                reply = self.commit(original_record)
 
         print(reply)
         return reply

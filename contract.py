@@ -40,8 +40,15 @@ class Contract:
         self.keep[hash_code] = record
         return hash_code
 
+    def done(self, hash_code):
+        self.prepared.pop(hash_code)
+        self.committed.pop(hash_code)
+        return self.keep.pop(hash_code)
+
     def consent(self, record, initiate):
         if initiate:
+            if not self.partners:
+                return True
             self.get_ready(record)
             for partner in self.partners:
                 partner.consent(self.name, ProtocolStep.LEADER, record)
@@ -63,8 +70,8 @@ class Contract:
                     return False
                 self.committed[record['hash']].add(record['pid'])
                 if len(self.committed[record['hash']]) * 3 >= len(self.partners):
-                    self.prepared.pop(record['hash'])
-                    self.committed.pop(record['hash'])
-                    self.keep.pop(record['hash'])
                     return True
         return False
+
+    def get_consent_result(self, record):
+        return self.done(record['hash'])

@@ -45,15 +45,20 @@
    <form>
     <label for="post_contract">Contract:</label>
     <select id="post_contract">
+     <option>Bank</option>
      <option>CSR</option>
     </select>
     <label for="post_trigger">Trigger:</label>
     <select id="post_trigger">
+     <option>create</option>
+     <option>pay</option>
      <option>addMember</option>
      <option>triggerEdge</option>
     </select>
     <label for="post_params">Parameters dictionary:</label>
     <select id="post_params">
+     <option>{"pid":"5001"}</option>
+     <option>{"from_pid":"5001", "to_pid":"5002", "amount":"37"}</option>
      <option>{"id":"5001"}</option>
     </select>
     <button type = "button" onclick="call_contract()" >Submit</button>
@@ -66,8 +71,8 @@
        xhr.setRequestHeader('Content-Type', 'application/json');
        var msg = JSON.stringify({
          'from': '',
+         'contract': document.getElementById('post_contract').value,
          'msg': {
-           'name': document.getElementById('post_contract').value,
            'method': document.getElementById('post_trigger').value,
            'param': JSON.parse(document.getElementById('post_params').value)
          }
