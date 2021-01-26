@@ -46,20 +46,31 @@
     <label for="post_contract">Contract:</label>
     <select id="post_contract">
      <option>Bank</option>
-     <option>CSR</option>
+     <option>Chat</option>
     </select>
     <label for="post_trigger">Trigger:</label>
     <select id="post_trigger">
      <option>create</option>
      <option>pay</option>
-     <option>addMember</option>
-     <option>triggerEdge</option>
+     <option>create_topic</option>
+     <option>reply</option>
+     <option>react</option>
+     <option>vote</option>
+     <option>chat</option>
     </select>
     <label for="post_params">Parameters dictionary:</label>
     <select id="post_params">
-     <option>{"pid":"5001"}</option>
-     <option>{"from_pid":"5001", "to_pid":"5002", "amount":"37"}</option>
-     <option>{"id":"5001"}</option>
+     <option>["5001"]</option>
+     <option>["5001", "5002", 37]</option>
+     <option>["מה עושים הערב?"]</option>
+     <option>["92420fed51","הולכים לסרט","אופציה"]</option>
+     <option>["92420fed51","הולכים למסעדה","אופציה"]</option>
+     <option>["92420fed51","נשארים בבית","אופציה"]</option>
+     <option>["92420fed51","הולכים לסרט","אופציה"]</option>
+     <option>["d9979f59e9","יצא הנוקמים 4","טיעון תומך"]</option>
+     <option>["d9979f59e9","אני רעב","טיעון מתנגד"]</option>
+     <option>["d9979f59e9","5001",-1]</option>
+     <option>["d9979f59e9","5002",1]</option>
     </select>
     <button type = "button" onclick="call_contract()" >Submit</button>
    </form>
@@ -96,7 +107,7 @@
     <label for="get_contract">Contract:</label>
     <select id="get_contract">
      <option>Bank</option>
-     <option>CSR</option>
+     <option>Chat</option>
     </select>
     <button type = "button" onclick="request_contract()" >Submit</button>
    </form>
@@ -133,7 +144,7 @@
     <label for="partner_contract_id">Contract:</label>
     <select id="partner_contract_id">
      <option>Bank</option>
-     <option>CSR</option>
+     <option>Chat</option>
     </select>
     <button type = "button" onclick="put_partner()" >Submit</button>
    </form>

@@ -26,6 +26,7 @@ class IBC:
 
     def handle_contract(self, record):
         params = record['params']
+        print(params)
         if record['type'] == 'GET':
             return self.state.get_state(params['contract'])
         elif record['type'] == 'PUT':

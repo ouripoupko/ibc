@@ -33,7 +33,7 @@ class Contract:
 
     def call(self, msg):
         m = getattr(self.obj, msg['method'])
-        m(msg['param'])
+        m(*msg['param'])
         return ast.literal_eval(repr(self.obj))
 
     def connect(self, partner):
