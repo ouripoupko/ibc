@@ -1,4 +1,6 @@
 from enum import Enum
+import ast
+import hashlib
 
 
 class ProtocolStep(Enum):
@@ -16,10 +18,13 @@ class Contract:
         self.obj = None
         self.prepared = {}
         self.committed = {}
+        self.commit_state = {}
         self.keep = {}
+        self.delayed = {}
 
     def __repr__(self):
-        return str({'class': 'Contract', 'name': self.name, 'partners': self.partners})
+        state = ast.literal_eval(repr(self.obj))
+        return str({'class': 'Contract', 'name': self.name, 'partners': self.partners, 'state': state})
 
     def run(self):
         exec(self.code)
@@ -28,50 +33,72 @@ class Contract:
 
     def call(self, msg):
         m = getattr(self.obj, msg['method'])
-        return m(msg['param'])
+        m(msg['param'])
+        return ast.literal_eval(repr(self.obj))
 
     def connect(self, partner):
         self.partners.append(partner)
 
     def get_ready(self, record):
-        hash_code = hash(str(record))
+        hash_code = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
         self.prepared[hash_code] = set()
         self.committed[hash_code] = set()
         self.keep[hash_code] = record
+        self.commit_state[hash_code] = False
         return hash_code
 
     def done(self, hash_code):
-        self.prepared.pop(hash_code)
-        self.committed.pop(hash_code)
-        return self.keep.pop(hash_code)
+        self.prepared.pop(hash_code, None)
+        self.committed.pop(hash_code, None)
+        self.delayed.pop(hash_code, None)
+        self.commit_state.pop(hash_code, None)
+        record = self.keep[hash_code]
+        self.keep[hash_code] = 'done'
+        return record
 
     def consent(self, record, initiate):
+        print(record)
         if initiate:
             if not self.partners:
                 return True
-            self.get_ready(record)
+            hash_code = self.get_ready(record)
             for partner in self.partners:
-                partner.consent(self.name, ProtocolStep.LEADER, record)
+                partner.consent(self.name, ProtocolStep.LEADER.name, record, 0.5)
+            for partner in self.partners:
+                partner.consent(self.name, ProtocolStep.PREPARE.name, hash_code)
         else:
-            step = record['params']['msg']['step']
-            if step == ProtocolStep.PREPARE:
-                hash_code = self.get_ready(record)
+            step = ProtocolStep[record['params']['msg']['step']]
+            if step == ProtocolStep.LEADER:
+                original_record = record['params']['msg']['data']
+                hash_code = self.get_ready(original_record)
+                delayed = self.delayed.get(hash_code, [])
                 for partner in self.partners:
-                    partner.consent(self.name, ProtocolStep.PREPARE, hash_code)
-            elif step == ProtocolStep.COMMIT:
-                if not self.keep.get(record['hash']):
+                    partner.consent(self.name, ProtocolStep.PREPARE.name, hash_code)
+                for delayed_record in delayed:
+                    self.consent(delayed_record, False)
+            else:
+                hash_code = record['params']['msg']['data']
+                from_pid = record['params']['from']
+                if not self.keep.get(hash_code):
+                    if not self.delayed.get(hash_code):
+                        self.delayed[hash_code] = []
+                    self.delayed[hash_code].append(record)
                     return False
-                self.prepared[record['hash']].add(record['pid'])
-                if len(self.prepared[record['hash']]) * 3 >= len(self.partners):
-                    for partner in self.partners:
-                        partner.consent(self.name, ProtocolStep.COMMIT, record['hash'])
-            elif step == ProtocolStep.DONE:
-                if not self.keep.get(record['hash']):
+                elif self.keep.get(hash_code) == 'done':
                     return False
-                self.committed[record['hash']].add(record['pid'])
-                if len(self.committed[record['hash']]) * 3 >= len(self.partners):
-                    return True
+                if step == ProtocolStep.PREPARE:
+                    self.prepared[hash_code].add(from_pid)
+                    if len(self.prepared[hash_code]) * 3 >= len(self.partners) * 2:
+                        for partner in self.partners:
+                            partner.consent(self.name, ProtocolStep.COMMIT.name, hash_code)
+                        self.commit_state[hash_code] = True
+                        if len(self.committed[hash_code]) * 3 >= len(self.partners) * 2:
+                            return True
+                elif step == ProtocolStep.COMMIT:
+                    self.committed[hash_code].add(from_pid)
+                    if len(self.committed[hash_code]) * 3 >= len(self.partners) * 2 and self.commit_state[hash_code]:
+                        return True
         return False
 
     def get_consent_result(self, record):
-        return self.done(record['hash'])
+        return self.done(record['params']['msg']['data'])

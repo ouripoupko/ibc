@@ -29,3 +29,10 @@ class State:
 
     def trigger(self, msg):
         pass
+
+    def get_state(self, name):
+        contract = self.contracts.get(name)
+        if contract:
+            return ast.literal_eval(repr(contract))
+        else:
+            return {'reply': 'no such contract'}

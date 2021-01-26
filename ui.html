@@ -24,7 +24,7 @@
    <script>
      function send_contract(){
        var xhr = new XMLHttpRequest();
-       xhr.open("PUT", "/contract/", true);
+       xhr.open("PUT", "/contract", true);
        xhr.setRequestHeader('Content-Type', 'application/json');
        var pathparts = document.getElementById('contractsrcfile').value.split('\\');
        var names = pathparts[pathparts.length-1].split('.');
@@ -67,7 +67,7 @@
    <script>
      function call_contract(){
        var xhr = new XMLHttpRequest();
-       xhr.open("POST", "/contract/", true);
+       xhr.open("POST", "/contract", true);
        xhr.setRequestHeader('Content-Type', 'application/json');
        var msg = JSON.stringify({
          'from': '',
@@ -91,6 +91,39 @@
    </script>
   </section>
   <section>
+   <h1>Get contract</h1>
+   <form>
+    <label for="get_contract">Contract:</label>
+    <select id="get_contract">
+     <option>Bank</option>
+     <option>CSR</option>
+    </select>
+    <button type = "button" onclick="request_contract()" >Submit</button>
+   </form>
+   <p id="get_result"></p>
+   <script>
+     function request_contract(){
+       var xhr = new XMLHttpRequest();
+       xhr.open("GET", "/contract?contract="+document.getElementById('get_contract').value, true);
+       xhr.setRequestHeader('Content-Type', 'application/json');
+       var msg = JSON.stringify({
+         'from': '',
+         'contract': document.getElementById('get_contract').value
+       });
+       console.log(msg);
+       xhr.send(msg);
+
+       xhr.onreadystatechange = function () {
+         if (this.readyState != 4) return;
+         if (this.status == 200) {
+           var data = JSON.parse(this.responseText);
+           document.getElementById('get_result').textContent = JSON.stringify(data);
+         }
+       };
+     }
+   </script>
+  </section>
+  <section>
    <h1>Put partner</h1>
    <form>
     <label for="partner_id">Partner ID:</label>
@@ -99,6 +132,7 @@
     </select>
     <label for="partner_contract_id">Contract:</label>
     <select id="partner_contract_id">
+     <option>Bank</option>
      <option>CSR</option>
     </select>
     <button type = "button" onclick="put_partner()" >Submit</button>
@@ -107,7 +141,7 @@
    <script>
      function put_partner(){
        var xhr = new XMLHttpRequest();
-       xhr.open("PUT", "/partner/", true);
+       xhr.open("PUT", "/partner", true);
        xhr.setRequestHeader('Content-Type', 'application/json');
        var port = document.getElementById('partner_id').value;
        var contract = document.getElementById('partner_contract_id').value;
