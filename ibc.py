@@ -1,5 +1,5 @@
 import sys
-from flask import Flask, request, Response, send_from_directory
+from flask import Flask, request, Response, send_from_directory, render_template, jsonify
 from state import State
 from blockchain import BlockChain
 
@@ -28,7 +28,8 @@ class IBC:
         params = record['params']
         print(params)
         if record['type'] == 'GET':
-            return self.state.get_state(params['contract'])
+            # return self.state.get_state(params['contract'])
+            return jsonify([{'name': 'Chat'},{'name': 'Kruvi'},{'name': 'Zimbabwe'},{'name': 'expialidoshes'},{'name': 'eurica'}])
         elif record['type'] == 'PUT':
             self.chain.log(record)
             return self.state.add(params['contract'], params['msg'])
@@ -73,10 +74,12 @@ def favicon():
 
 @app.route('/', methods=['GET'])
 def view():  # pragma: no cover
-    f = open('ui.html', 'r')
-    content = f.read()
-    f.close()
-    return Response(content, mimetype="text/html")
+    return render_template('index.html')
+#    f = open('ui.html', 'r')
+#    f = open('ibc-client/index.html', 'r')
+#    content = f.read()
+#    f.close()
+#    return Response(content, mimetype="text/html")
 
 
 # Create a URL route in our application for contracts
@@ -84,14 +87,16 @@ def view():  # pragma: no cover
 #  put contract    - create a new contract with the given code
 #  post contract   - interact with a contract by executing a method
 #  delete contract - mark it terminated (history cannot be deleted)
-@app.route('/contract', methods=['GET', 'POST', 'PUT', 'DELETE'])
-def contract_handler():
+@app.route('/static/contract', methods=['GET', 'POST', 'PUT', 'DELETE'], defaults={'path': ''})
+@app.route('/static/contract/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def contract_handler(path):
     params = {}
     if request.method == 'GET':
-        params = {'contract': request.args.get('contract')}
+        params = path # {'contract': request.args.get('contract')}
     else:
         params = request.get_json()
 
+    print(params)
     record = {'owner': 'contract', 'type': request.method, 'params': params}
     return ibc.handle_contract(record)
 
