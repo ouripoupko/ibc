@@ -1,0 +1,19 @@
+<h2>My Contracts</h2>
+
+<div>
+  <label>Contract name:
+    <input #contractName />
+  </label>
+  <button (click)="add(contractName.value); contractName.value=''">
+    add
+  </button>
+</div>
+
+<ul class="contracts">
+  <li *ngFor="let contract of contracts">
+    <a routerLink="/detail/{{contract.name}}">
+      <span class="board">{{contract.name | slice : 0 : 2}}</span> {{contract.name}}
+    </a>
+  </li>
+</ul>
+
