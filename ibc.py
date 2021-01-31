@@ -1,12 +1,11 @@
 import sys
-from flask import Flask, request, Response, send_from_directory, render_template, jsonify
+from flask import Flask, request, send_from_directory, render_template, jsonify
 from state import State
 from blockchain import BlockChain
 
 # Create the application instance
 app = Flask(__name__, static_folder='ibc')
 
-mock = [{'name': 'Chat'},{'name': 'Kruvi'},{'name': 'Zimbabwe'},{'name': 'expialidoshes'},{'name': 'eurica'}]
 
 class IBC:
     def __init__(self, pid):
@@ -27,26 +26,23 @@ class IBC:
 
     def handle_contract(self, record):
         params = record['params']
+        path = record['path']
         print(params)
+        print(path)
         if record['type'] == 'GET':
-            # return self.state.get_state(params['contract'])
-            if params:
-                return {'name': params}
+            if path:
+                return self.state.get_state(params['contract'])
             else:
-                return jsonify(mock)
+                return jsonify([{'name': name} for name in self.state.get_contracts()])
         elif record['type'] == 'PUT':
-            mock.append(params)
-            return jsonify("contract updated and I am happy")
-            # self.chain.log(record)
-            # return self.state.add(params['contract'], params['msg'])
+            self.chain.log(record)
+            return self.state.add(params['contract'], params['msg'])
         elif record['type'] == 'POST':
-            mock.append(params)
-            return params
-            # contract = self.state.get(params['contract'])
-            # if contract.consent(record, True):
-            #     return self.commit(record)
-            # else:
-            #     return {'reply': 'starting consensus protocol'}
+            contract = self.state.get(params['contract'])
+            if contract.consent(record, True):
+                return self.commit(record)
+            else:
+                return {'reply': 'starting consensus protocol'}
 
     def handle_partner(self, record, my_address):
         params = record['params']
@@ -98,14 +94,9 @@ def view():  # pragma: no cover
 @app.route('/ibc/contract', methods=['GET', 'POST', 'PUT', 'DELETE'], defaults={'path': ''})
 @app.route('/ibc/contract/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def contract_handler(path):
-    params = {}
-    if request.method == 'GET':
-        params = path # {'contract': request.args.get('contract')}
-    else:
-        params = request.get_json()
+    params = request.get_json()
 
-    print(params)
-    record = {'owner': 'contract', 'type': request.method, 'params': params}
+    record = {'owner': 'contract', 'type': request.method, 'params': params, 'path': path}
     return ibc.handle_contract(record)
 
 

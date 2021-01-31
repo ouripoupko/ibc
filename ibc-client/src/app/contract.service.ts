@@ -45,8 +45,9 @@ export class ContractService {
   }
 
   /** PUT **/
-  updateContract(contract: Contract): Observable<any> {
-    return this.http.put(this.contractUrl, contract, this.httpOptions).pipe(
+  updateContract(name: string, contract: Contract): Observable<any> {
+    const url = `${this.contractUrl}/${name}`;
+    return this.http.put(url, contract, this.httpOptions).pipe(
       tap(_ => this.log(`updated contract name=${contract.name}`)),
       catchError(this.handleError<any>('updateContract'))
     );

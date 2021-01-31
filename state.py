@@ -36,3 +36,6 @@ class State:
             return ast.literal_eval(repr(contract))
         else:
             return {'reply': 'no such contract'}
+
+    def get_contracts(self):
+        return repr(list(self.contracts.values()))

@@ -13,6 +13,7 @@ import { Contract } from '../contract';
 export class ContractDetailComponent implements OnInit {
 
   @Input() contract: Contract;
+  name: string;
 
   constructor(
     private route: ActivatedRoute,
@@ -25,12 +26,12 @@ export class ContractDetailComponent implements OnInit {
   }
 
   getContract(): void {
-    const name = this.route.snapshot.paramMap.get('name');
-    this.contractService.getContract(name).subscribe(contract => this.contract = contract);
+    this.name = this.route.snapshot.paramMap.get('name');
+    this.contractService.getContract(this.name).subscribe(contract => this.contract = contract);
   }
 
   save(): void {
-    this.contractService.updateContract(this.contract)
+    this.contractService.updateContract(this.name, this.contract)
       .subscribe(() => this.goBack());
   }
 

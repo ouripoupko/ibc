@@ -23,8 +23,9 @@ class Contract:
         self.delayed = {}
 
     def __repr__(self):
-        state = ast.literal_eval(repr(self.obj))
-        return str({'class': 'Contract', 'name': self.name, 'partners': self.partners, 'state': state})
+        # state = ast.literal_eval(repr(self.obj))
+        # return str({'class': 'Contract', 'name': self.name, 'partners': self.partners, 'state': state})
+        return self.name
 
     def run(self):
         exec(self.code)
