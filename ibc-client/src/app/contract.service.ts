@@ -5,7 +5,6 @@ import { Observable, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 
 import { Contract } from './contract';
-import { CONTRACTS } from './mock-contracts';
 import { MessageService } from './message.service';
 
 @Injectable({

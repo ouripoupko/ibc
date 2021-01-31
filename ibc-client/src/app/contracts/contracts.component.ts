@@ -17,15 +17,6 @@ export class ContractsComponent implements OnInit {
       .subscribe(contracts => {this.contracts = contracts; console.log(contracts);});
   }
 
-  add(name: string): void {
-    name = name.trim();
-    if (!name) { return; }
-    this.contractService.addContract({ name } as Contract)
-      .subscribe(contract => {
-        this.contracts.push(contract);
-      });
-  }
-
   constructor(private contractService: ContractService) { }
 
   ngOnInit(): void {

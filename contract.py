@@ -1,3 +1,4 @@
+from builtins import __build_class__
 from enum import Enum
 import ast
 import hashlib
@@ -28,8 +29,10 @@ class Contract:
         return self.name
 
     def run(self):
-        exec(self.code)
-        self.obj = locals()[self.name]()
+        empty_locals = {}
+        exec(self.code,
+             {'__builtins__': {'__build_class__': __build_class__, '__name__': __name__, 'str': str}}, empty_locals)
+        self.obj = list(empty_locals.values())[0]()
         return {'msg': 'contract {} is running!'.format(self.name)}
 
     def call(self, msg):

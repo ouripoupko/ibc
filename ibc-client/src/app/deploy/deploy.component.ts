@@ -1,5 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 
+import { ContractService } from '../contract.service';
+import { Contract } from '../contract';
+
 @Component({
   selector: 'app-deploy',
   templateUrl: './deploy.component.html',
@@ -8,9 +11,13 @@ import { Component, OnInit } from '@angular/core';
 export class DeployComponent implements OnInit {
 
 	compInfo: string = "Loading...";
+	fileFound: boolean = false;
 
-  constructor() {
-    this.compInfo = "no contract selected yet"}
+  constructor(
+    private contractService: ContractService
+  ) {
+    this.compInfo = "no contract selected yet"
+  }
 
   ngOnInit(): void {
   }
@@ -22,7 +29,19 @@ export class DeployComponent implements OnInit {
 		fileReader.readAsText(file);
 		fileReader.onload = function(e) {
 			console.log("fileReader.onload");
-//			this.compInfo = "FileReader works!";
-		}
+			this.compInfo = e.target.result;
+			this.fileFound = true;
+		}.bind(this);
 	}
+
+  deploy(name: string): void {
+    name = name.trim();
+    if (!name) { return; }
+    if (!this.fileFound) { return; }
+    this.contractService.addContract({ name: name, code: this.compInfo } as Contract)
+      .subscribe();
+    this.compInfo = "no contract selected yet"
+		this.fileFound = false;
+  }
+
 }

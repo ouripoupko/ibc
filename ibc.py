@@ -33,11 +33,13 @@ class IBC:
             if path:
                 return self.state.get_state(params['contract'])
             else:
-                return jsonify([{'name': name} for name in self.state.get_contracts()])
-        elif record['type'] == 'PUT':
-            self.chain.log(record)
-            return self.state.add(params['contract'], params['msg'])
+                reply = jsonify([{'name': name} for name in self.state.get_contracts()])
+                print(reply.get_json())
+                return reply
         elif record['type'] == 'POST':
+            self.chain.log(record)
+            return self.state.add(params['name'], params['code'])
+        elif record['type'] == 'PUT':
             contract = self.state.get(params['contract'])
             if contract.consent(record, True):
                 return self.commit(record)

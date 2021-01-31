@@ -2,6 +2,7 @@ import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms'; // <-- NgModel lives here
 import { HttpClientModule } from '@angular/common/http';
+import { HighlightModule, HIGHLIGHT_OPTIONS } from 'ngx-highlightjs';
 
 import { AppComponent } from './app.component';
 import { ContractsComponent } from './contracts/contracts.component';
@@ -22,9 +23,21 @@ import { DeployComponent } from './deploy/deploy.component';
     HttpClientModule,
     BrowserModule,
     FormsModule,
+    HighlightModule,
     AppRoutingModule
   ],
-  providers: [],
+  providers: [
+    {
+      provide: HIGHLIGHT_OPTIONS,
+      useValue: {
+        coreLibraryLoader: () => import('highlight.js/lib/core'),
+        lineNumbersLoader: () => import('highlightjs-line-numbers.js'), // Optional, only if you want the line numbers
+        languages: {
+          python: () => import('highlight.js/lib/languages/python')
+        }
+      }
+    }
+  ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

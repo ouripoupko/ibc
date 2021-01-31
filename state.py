@@ -38,4 +38,4 @@ class State:
             return {'reply': 'no such contract'}
 
     def get_contracts(self):
-        return repr(list(self.contracts.values()))
+        return [contract.name for contract in self.contracts.values()]
