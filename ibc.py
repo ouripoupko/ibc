@@ -4,8 +4,9 @@ from state import State
 from blockchain import BlockChain
 
 # Create the application instance
-app = Flask(__name__)
+app = Flask(__name__, static_folder='ibc')
 
+mock = [{'name': 'Chat'},{'name': 'Kruvi'},{'name': 'Zimbabwe'},{'name': 'expialidoshes'},{'name': 'eurica'}]
 
 class IBC:
     def __init__(self, pid):
@@ -29,16 +30,23 @@ class IBC:
         print(params)
         if record['type'] == 'GET':
             # return self.state.get_state(params['contract'])
-            return jsonify([{'name': 'Chat'},{'name': 'Kruvi'},{'name': 'Zimbabwe'},{'name': 'expialidoshes'},{'name': 'eurica'}])
-        elif record['type'] == 'PUT':
-            self.chain.log(record)
-            return self.state.add(params['contract'], params['msg'])
-        elif record['type'] == 'POST':
-            contract = self.state.get(params['contract'])
-            if contract.consent(record, True):
-                return self.commit(record)
+            if params:
+                return {'name': params}
             else:
-                return {'reply': 'starting consensus protocol'}
+                return jsonify(mock)
+        elif record['type'] == 'PUT':
+            mock.append(params)
+            return jsonify("contract updated and I am happy")
+            # self.chain.log(record)
+            # return self.state.add(params['contract'], params['msg'])
+        elif record['type'] == 'POST':
+            mock.append(params)
+            return params
+            # contract = self.state.get(params['contract'])
+            # if contract.consent(record, True):
+            #     return self.commit(record)
+            # else:
+            #     return {'reply': 'starting consensus protocol'}
 
     def handle_partner(self, record, my_address):
         params = record['params']
@@ -87,8 +95,8 @@ def view():  # pragma: no cover
 #  put contract    - create a new contract with the given code
 #  post contract   - interact with a contract by executing a method
 #  delete contract - mark it terminated (history cannot be deleted)
-@app.route('/static/contract', methods=['GET', 'POST', 'PUT', 'DELETE'], defaults={'path': ''})
-@app.route('/static/contract/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@app.route('/ibc/contract', methods=['GET', 'POST', 'PUT', 'DELETE'], defaults={'path': ''})
+@app.route('/ibc/contract/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def contract_handler(path):
     params = {}
     if request.method == 'GET':
