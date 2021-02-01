@@ -14,7 +14,10 @@ class ProtocolStep(Enum):
 class Contract:
     def __init__(self, name, code):
         self.name = name
+        self.class_name = ''
         self.code = code
+        self.members = []
+        self.methods = []
         self.partners = []
         self.obj = None
         self.prepared = {}
@@ -32,8 +35,21 @@ class Contract:
         empty_locals = {}
         exec(self.code,
              {'__builtins__': {'__build_class__': __build_class__, '__name__': __name__, 'str': str}}, empty_locals)
-        self.obj = list(empty_locals.values())[0]()
+        # [f for f in dir(ClassName) if not f.startswith('_')]
+        # args=method.__code__.co_varnames
+        class_object = list(empty_locals.values())[0]
+        self.class_name = class_object.__name__
+        self.obj = class_object()
+        attributes = [attribute for attribute in dir(self.obj) if not attribute.startswith('_')]
+        self.members = [attribute for attribute in attributes if not callable(getattr(self.obj, attribute))]
+        method_names = [attribute for attribute in attributes if callable(getattr(self.obj, attribute))]
+        self.methods = [{'name': name, 'arguments': list(getattr(self.obj, name).__code__.co_varnames)[1:]} for name in method_names]
         return {'msg': 'contract {} is running!'.format(self.name)}
+
+    def get_info(self):
+        values = [str(getattr(self.obj, attribute)) for attribute in self.members]
+        return {'name': self.name, 'contract': self.class_name, 'code': self.code,
+                'methods': self.methods, 'members': self.members, 'values': values}
 
     def call(self, msg):
         m = getattr(self.obj, msg['method'])

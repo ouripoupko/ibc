@@ -38,7 +38,7 @@ export class ContractService {
   getContract(name: string): Observable<Contract> {
     const url = `${this.contractUrl}/${name}`;
     return this.http.get<Contract>(url).pipe(
-      tap(_ => this.log(`fetched contract name=${name}`)),
+      tap((newContract: Contract) => console.log(newContract)), //_ => this.log(`fetched contract name=${name}`); console.log(_);),
       catchError(this.handleError<Contract>(`getContract name=${name}`))
     );
   }

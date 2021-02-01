@@ -1,8 +1,23 @@
 <div *ngIf="contract">
 
-  <h2>{{contract.name | slice : 0 : 2}} Details</h2>
+  <h2>{{contract.name}} - {{contract.contract}}</h2>
 
-  <div><span>type: </span>{{contract.name}}</div>
+  <h3>Members</h3>
+  <div *ngFor="let member of contract.members; let i = index"><!--value = contract.values[index]">-->
+    {{member}}: {{contract.values[i]}}
+  </div>
+
+  <h3>Methods</h3>
+  <div *ngFor="let method of contract.methods">
+    <app-operation [name]="contract.name" [method]="method.name" [arguments]="method.arguments"></app-operation>
+  </div>
+
+  <h3>Code</h3>
+  <pre>
+    <code [highlight]="contract.code"></code>
+  </pre>
+
+<!--  <div><span>type: </span>{{contract.name}}</div>
   <div>
     <label>name:
       <input [(ngModel)]="contract.name" placeholder="name"/>
@@ -11,4 +26,5 @@
 
   <button (click)="save()">save</button>
   <button (click)="goBack()">go back</button>
+-->
 </div>

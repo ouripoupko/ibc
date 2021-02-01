@@ -33,7 +33,7 @@ class State:
     def get_state(self, name):
         contract = self.contracts.get(name)
         if contract:
-            return ast.literal_eval(repr(contract))
+            return contract.get_info()
         else:
             return {'reply': 'no such contract'}
 

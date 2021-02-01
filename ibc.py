@@ -31,7 +31,7 @@ class IBC:
         print(path)
         if record['type'] == 'GET':
             if path:
-                return self.state.get_state(params['contract'])
+                return self.state.get_state(path)
             else:
                 reply = jsonify([{'name': name} for name in self.state.get_contracts()])
                 print(reply.get_json())
@@ -40,7 +40,7 @@ class IBC:
             self.chain.log(record)
             return self.state.add(params['name'], params['code'])
         elif record['type'] == 'PUT':
-            contract = self.state.get(params['contract'])
+            contract = self.state.get(path)
             if contract.consent(record, True):
                 return self.commit(record)
             else:
