@@ -10,4 +10,5 @@ export interface Contract {
 export interface Method {
   name: string;
   arguments: string[];
+  values: any[];
 }

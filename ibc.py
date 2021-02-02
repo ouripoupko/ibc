@@ -16,12 +16,12 @@ class IBC:
     def commit(self, record):
         self.chain.log(record)
         params = record['params']
-        contract = self.state.get(params['contract'])
+        contract = self.state.get(record['path'])
         reply = {'reply': 'hello world'}
-        if record['owner'] == 'partner' and record['type'] == 'PUT':
+        if record['owner'] == 'partner' and record['type'] == 'POST':
             reply = self.state.join(ibc, params['contract'], params['msg'], None)
-        elif record['owner'] == 'contract' and record['type'] == 'POST':
-            reply = contract.call(params['msg'])
+        elif record['owner'] == 'contract' and record['type'] == 'PUT':
+            reply = contract.call(params)
         return reply
 
     def handle_contract(self, record):

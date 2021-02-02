@@ -2,12 +2,6 @@
     <h4>{{method}}</h4>
     <label *ngFor="let argument of arguments; let i=index">{{argument}}:
         <input [(ngModel)]="values[i]" />
-        <select>
-          <option>as string</option>
-          <option>as integer</option>
-          <option>as number</option>
-          <option>as json</option>
-        </select>
     </label>
     <button (click)="call()">
         call

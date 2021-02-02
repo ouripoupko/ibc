@@ -11,6 +11,7 @@ import { MessagesComponent } from './messages/messages.component';
 import { AppRoutingModule } from './app-routing.module';
 import { DeployComponent } from './deploy/deploy.component';
 import { OperationComponent } from './contract-detail/operation/operation.component';
+import { PartnerComponent } from './partner/partner.component';
 
 @NgModule({
   declarations: [
@@ -19,7 +20,8 @@ import { OperationComponent } from './contract-detail/operation/operation.compon
     ContractDetailComponent,
     MessagesComponent,
     DeployComponent,
-    OperationComponent
+    OperationComponent,
+    PartnerComponent
   ],
   imports: [
     HttpClientModule,

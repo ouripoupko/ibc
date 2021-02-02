@@ -7,6 +7,7 @@ class Bank:
         self.accounts[pid] = 500
 
     def pay(self, from_pid, to_pid, amount):
+        amount = int(amount)
         if self.accounts.get(from_pid) and self.accounts[from_pid] >= amount:
             self.accounts[from_pid] = self.accounts[from_pid] - amount
             if not self.accounts.get(to_pid):

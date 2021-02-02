@@ -4,7 +4,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 
-import { Contract } from './contract';
+import { Contract, Method } from './contract';
 import { MessageService } from './message.service';
 
 @Injectable({
@@ -26,8 +26,13 @@ export class ContractService {
   }
 
   /** GET **/
-  getContracts(): Observable<Contract[]> {
-    return this.http.get<Contract[]>(this.contractUrl)
+  getContracts(address: string = ''): Observable<Contract[]> {
+    var url = this.contractUrl;
+    if(address != '') {
+      url = `${address}/${this.contractUrl}`;
+    }
+    console.log(url);
+    return this.http.get<Contract[]>(url)
       .pipe(
         tap(_ => this.log('fetched contracts')),
         catchError(this.handleError<Contract[]>('getContracts', []))
@@ -44,11 +49,11 @@ export class ContractService {
   }
 
   /** PUT **/
-  updateContract(name: string, contract: Contract): Observable<any> {
+  callContract(name: string, method: Method): Observable<any> {
     const url = `${this.contractUrl}/${name}`;
-    return this.http.put(url, contract, this.httpOptions).pipe(
-      tap(_ => this.log(`updated contract name=${contract.name}`)),
-      catchError(this.handleError<any>('updateContract'))
+    return this.http.put(url, method, this.httpOptions).pipe(
+      tap(_ => this.log(`called contract name=${name} method=${method.name}`)),
+      catchError(this.handleError<any>('callContract'))
     );
   }
 

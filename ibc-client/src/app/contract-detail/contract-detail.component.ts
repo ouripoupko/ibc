@@ -29,10 +29,6 @@ export class ContractDetailComponent implements OnInit {
     this.name = this.route.snapshot.paramMap.get('name');
     this.contractService.getContract(this.name).subscribe(contract => this.contract = contract);
   }
-  save(): void {
-    this.contractService.updateContract(this.name, this.contract)
-      .subscribe(() => this.goBack());
-  }
 
   goBack(): void {
     this.location.back();
