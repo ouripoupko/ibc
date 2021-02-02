@@ -16,10 +16,11 @@ class IBC:
     def commit(self, record):
         self.chain.log(record)
         params = record['params']
-        contract = self.state.get(record['path'])
+        path = record['path']
+        contract = self.state.get(path)
         reply = {'reply': 'hello world'}
         if record['owner'] == 'partner' and record['type'] == 'POST':
-            reply = self.state.join(ibc, params['contract'], params['msg'], None)
+            reply = self.state.join(ibc, path, params['msg'], None)
         elif record['owner'] == 'contract' and record['type'] == 'PUT':
             reply = contract.call(params)
         return reply
@@ -48,20 +49,23 @@ class IBC:
 
     def handle_partner(self, record, my_address):
         params = record['params']
+        path = record['path']
+        print(params)
+        print(path)
         reply = {'reply': 'hello world'}
         if record['type'] == 'GET':
-            reply = self.chain.get(params['contract'])
-        elif record['type'] == 'PUT':
+            reply = self.chain.get(path)
+        elif record['type'] == 'POST':
             if not params.get('from'):  # this is the initiator of the join request
-                reply = self.state.join(ibc, params['contract'], params['msg'], my_address)
+                reply = self.state.join(ibc, path, params, my_address)
             else:
-                contract = self.state.get(params['contract'])
+                contract = self.state.get(path)
                 if contract.consent(record, True):
                     return self.commit(record)
                 else:
                     return {'reply': 'starting consensus protocol'}
-        elif record['type'] == 'POST':
-            contract = self.state.get(params['contract'])
+        elif record['type'] == 'PUT':
+            contract = self.state.get(path)
             if contract.consent(record, False):
                 original_record = contract.get_consent_result(record)
                 reply = self.commit(original_record)
@@ -90,8 +94,8 @@ def view():  # pragma: no cover
 
 # Create a URL route in our application for contracts
 #  get contract    - receive the contract's state
-#  put contract    - create a new contract with the given code
-#  post contract   - interact with a contract by executing a method
+#  post contract   - create a new contract with the given code
+#  put contract    - interact with a contract by executing a method
 #  delete contract - mark it terminated (history cannot be deleted)
 @app.route('/ibc/contract', methods=['GET', 'POST', 'PUT', 'DELETE'], defaults={'path': ''})
 @app.route('/ibc/contract/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
@@ -104,12 +108,13 @@ def contract_handler(path):
 
 # Create a URL route in our application for partners
 #  get contract    - receive the contract's transaction history
-#  put partner  - create a partnership by joining a contract
-#  post partner - interact with a partner to reach consensus
-@app.route('/partner', methods=['GET', 'POST', 'PUT', 'DELETE'])
-def partner_handler():
+#  post partner    - create a partnership by joining a contract
+#  put partner     - interact with a partner to reach consensus
+@app.route('/ibc/partner', methods=['GET', 'POST', 'PUT', 'DELETE'], defaults={'path': ''})
+@app.route('/ibc/partner/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def partner_handler(path):
     params = request.get_json()
-    record = {'owner': 'partner', 'type': request.method, 'params': params}
+    record = {'owner': 'partner', 'type': request.method, 'params': params, 'path': path}
     return ibc.handle_partner(record, request.url_root)
 
 

@@ -1,4 +1,3 @@
-import ast
 from contract import Contract
 from partner import Partner
 
@@ -14,7 +13,7 @@ class State:
         return contract.run()
 
     def join(self, ibc, name, msg, my_address):
-        partner = Partner(msg['address'], msg['id'], ibc.me)
+        partner = Partner(msg['address'], msg['pid'], ibc.me)
         if my_address:  # my_address is supplied when initiator calls this method
             records = partner.get_contract(name)
             for record in records:
@@ -22,7 +21,7 @@ class State:
             partner.connect(name, my_address)
         contract = self.contracts.get(name)
         contract.connect(partner)
-        return ast.literal_eval(repr(contract))
+        return contract.get_info()
 
     def get(self, name):
         return self.contracts.get(name)

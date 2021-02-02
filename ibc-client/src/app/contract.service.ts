@@ -26,13 +26,8 @@ export class ContractService {
   }
 
   /** GET **/
-  getContracts(address: string = ''): Observable<Contract[]> {
-    var url = this.contractUrl;
-    if(address != '') {
-      url = `${address}/${this.contractUrl}`;
-    }
-    console.log(url);
-    return this.http.get<Contract[]>(url)
+  getContracts(): Observable<Contract[]> {
+    return this.http.get<Contract[]>(this.contractUrl)
       .pipe(
         tap(_ => this.log('fetched contracts')),
         catchError(this.handleError<Contract[]>('getContracts', []))
@@ -62,6 +57,14 @@ export class ContractService {
     return this.http.post<Contract>(this.contractUrl, contract, this.httpOptions).pipe(
       tap((newContract: Contract) => this.log(`added contract with name=${newContract.name}`)),
       catchError(this.handleError<Contract>('addContract'))
+    );
+  }
+
+  /** POST **/
+  connect(address: string, pid: string, name: string): Observable<Contract> {
+    return this.http.post(`partner/${name}`, { address: address, pid: pid }, this.httpOptions).pipe(
+      tap(_ => this.log(`connected to ${address} with contract ${name}`)),
+      catchError(this.handleError<any>('connect'))
     );
   }
 

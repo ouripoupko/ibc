@@ -1,6 +1,7 @@
 import threading
 import requests
 import time
+import sys
 
 
 def delayed_thread(t, url, json):
@@ -24,21 +25,24 @@ class Partner:
         return {'reply': 'message sent to partner'}
 
     def get_contract(self, contract):
-        reply = requests.get(self.address + 'partner',
-                             json={'from': self.me, 'to': self.pid, 'contract': contract}).json()
+        try:
+            reply = requests.get(self.address + 'ibc/partner/' + contract,
+                                 json={'from': self.me, 'to': self.pid}).json()
+        except Exception as e:
+            print(e)
         return reply['reply']
 
     def connect(self, contract, my_address):
-        threading.Thread(target=requests.put,
-                         kwargs={'url': self.address + 'partner',
-                                 'json': {'from': self.me, 'to': self.pid, 'contract': contract,
-                                          'msg': {'address': my_address, 'id': self.me}}}).start()
+        threading.Thread(target=requests.post,
+                         kwargs={'url': self.address + 'ibc/partner/' + contract,
+                                 'json': {'from': self.me, 'to': self.pid,
+                                          'msg': {'address': my_address, 'pid': self.me}}}).start()
         return {'reply': 'message sent to partner'}
 
     def consent(self, contract, step, data, delay=0):
         threading.Thread(target=delayed_thread,  # requests.post,
                          args=(delay,),
-                         kwargs={'url': self.address + 'partner',
-                                 'json': {'from': self.me, 'to': self.pid, 'contract': contract,
+                         kwargs={'url': self.address + 'ibc/partner/' + contract,
+                                 'json': {'from': self.me, 'to': self.pid,
                                           'msg': {'step': step, 'data': data}}}).start()
         return {'reply': 'message sent to partner'}
