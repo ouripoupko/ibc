@@ -44,7 +44,11 @@ class Contract:
         attributes = [attribute for attribute in dir(self.obj) if not attribute.startswith('_')]
         self.members = [attribute for attribute in attributes if not callable(getattr(self.obj, attribute))]
         method_names = [attribute for attribute in attributes if callable(getattr(self.obj, attribute))]
-        self.methods = [{'name': name, 'arguments': list(getattr(self.obj, name).__code__.co_varnames)[1:]} for name in method_names]
+        self.methods = [{'name': name,
+                         'arguments': [arg for arg in
+                                       list(getattr(self.obj, name).__code__.co_varnames)[1:]
+                                       if not arg.startswith('_')]}
+                        for name in method_names]
         return {'msg': 'contract {} is running!'.format(self.name)}
 
     def get_info(self):

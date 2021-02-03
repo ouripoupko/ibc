@@ -54,7 +54,7 @@ export class ContractService {
 
   /** POST **/
   addContract(contract: Contract): Observable<Contract> {
-    return this.http.post<Contract>(this.contractUrl, contract, this.httpOptions).pipe(
+    return this.http.post<Contract>(`${this.contractUrl}/${contract.name}`, contract, this.httpOptions).pipe(
       tap((newContract: Contract) => this.log(`added contract with name=${newContract.name}`)),
       catchError(this.handleError<Contract>('addContract'))
     );

@@ -30,22 +30,24 @@ class IBC:
         path = record['path']
         print(params)
         print(path)
+        reply = {}
         if record['type'] == 'GET':
             if path:
-                return self.state.get_state(path)
+                reply = self.state.get_state(path)
             else:
                 reply = jsonify([{'name': name} for name in self.state.get_contracts()])
                 print(reply.get_json())
-                return reply
+                reply = reply
         elif record['type'] == 'POST':
             self.chain.log(record)
-            return self.state.add(params['name'], params['code'])
+            reply = self.state.add(params['name'], params['code'])
         elif record['type'] == 'PUT':
             contract = self.state.get(path)
             if contract.consent(record, True):
-                return self.commit(record)
+                reply = self.commit(record)
             else:
-                return {'reply': 'starting consensus protocol'}
+                reply = {'reply': 'starting consensus protocol'}
+        return reply
 
     def handle_partner(self, record, my_address):
         params = record['params']
@@ -61,15 +63,14 @@ class IBC:
             else:
                 contract = self.state.get(path)
                 if contract.consent(record, True):
-                    return self.commit(record)
+                    reply = self.commit(record)
                 else:
-                    return {'reply': 'starting consensus protocol'}
+                    reply = {'reply': 'starting consensus protocol'}
         elif record['type'] == 'PUT':
             contract = self.state.get(path)
             if contract.consent(record, False):
                 original_record = contract.get_consent_result(record)
                 reply = self.commit(original_record)
-
         return reply
 
 

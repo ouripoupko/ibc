@@ -6,7 +6,7 @@ import sys
 
 def delayed_thread(t, url, json):
     time.sleep(t)
-    requests.post(url, json=json)
+    requests.put(url, json=json)
 
 
 class Partner:
@@ -18,11 +18,11 @@ class Partner:
     def __repr__(self):
         return str({'class': 'Partner', 'id': self.pid, 'address': self.address})
 
-    def call(self, params):
-        threading.Thread(target=requests.post,
-                         kwargs={'url': self.address + 'contract',
-                                 'json': {'from': self.me, 'to': self.pid, 'msg': params}}).start()
-        return {'reply': 'message sent to partner'}
+#    def call(self, params):
+#        threading.Thread(target=requests.post,
+#                         kwargs={'url': self.address + 'contract',
+#                                 'json': {'from': self.me, 'to': self.pid, 'msg': params}}).start()
+#        return {'reply': 'message sent to partner'}
 
     def get_contract(self, contract):
         try:

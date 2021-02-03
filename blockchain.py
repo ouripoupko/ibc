@@ -6,4 +6,4 @@ class BlockChain:
         self.chain.append(record)
 
     def get(self, name):
-        return {'reply': [record for record in self.chain if record['params']['name'] == name]}
+        return {'reply': [record for record in self.chain if record['path'] == name]}

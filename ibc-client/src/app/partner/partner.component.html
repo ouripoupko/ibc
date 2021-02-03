@@ -1,7 +1,11 @@
 <h2>Partner's Contracts</h2>
 
 <label>URL:
-  <input [(ngModel)]="address" placeholder="url"/>
+  <select [(ngModel)]="address">
+    <option>http://localhost:5001/</option>
+    <option>http://localhost:5002/</option>
+    <option>http://localhost:5003/</option>
+  </select>
 </label>
 <label>pid:
   <input [(ngModel)]="pid" placeholder="pid"/>
