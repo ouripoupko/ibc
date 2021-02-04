@@ -25,6 +25,10 @@ export class ContractService {
     this.messageService.add(`contractService: ${message}`);
   }
 
+  getIdentity(): Observable<string> {
+    return this.http.get<string>('identity');
+  }
+
   /** GET **/
   getContracts(): Observable<Contract[]> {
     return this.http.get<Contract[]>(this.contractUrl)
@@ -46,7 +50,7 @@ export class ContractService {
   /** PUT **/
   callContract(name: string, method: Method): Observable<any> {
     const url = `${this.contractUrl}/${name}`;
-    return this.http.put(url, method, this.httpOptions).pipe(
+    return this.http.put<Contract>(url, method, this.httpOptions).pipe(
       tap(_ => this.log(`called contract name=${name} method=${method.name}`)),
       catchError(this.handleError<any>('callContract'))
     );

@@ -93,6 +93,13 @@ def view():  # pragma: no cover
 #    return Response(content, mimetype="text/html")
 
 
+# Create a URL route in our application for identity
+#  get identity    - receive the identity's name
+@app.route('/ibc/identity', methods=['GET'])
+def identity_handler():
+    return jsonify(ibc.me)
+
+
 # Create a URL route in our application for contracts
 #  get contract    - receive the contract's state
 #  post contract   - create a new contract with the given code
@@ -119,8 +126,24 @@ def partner_handler(path):
     return ibc.handle_partner(record, request.url_root)
 
 
+class LoggingMiddleware(object):
+    def __init__(self, app):
+        self._app = app
+
+    def __call__(self, env, resp):
+        print('REQUEST', env)
+
+        def log_response(status, headers, *args):
+            print('RESPONSE', status, headers)
+            return resp(status, headers, *args)
+
+        return self._app(env, log_response)
+
+
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
-    me = sys.argv[1]
+    port = sys.argv[1]
+    me = sys.argv[2]
     ibc = IBC(me)
-    app.run(debug=True, port=me, threaded=False)
+    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
+    app.run(debug=True, port=port, threaded=False)

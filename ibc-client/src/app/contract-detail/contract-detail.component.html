@@ -9,7 +9,8 @@
 
   <h3>Methods</h3>
   <div *ngFor="let method of contract.methods">
-    <app-operation [name]="contract.name" [method]="method.name" [arguments]="method.arguments"></app-operation>
+    <app-operation [name]="contract.name" [method]="method.name" [arguments]="method.arguments"
+    (updateContractEvent)="contract=$event"></app-operation>
   </div>
 
   <h3>Code</h3>

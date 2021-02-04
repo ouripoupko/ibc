@@ -1,6 +1,5 @@
 from builtins import __build_class__
 from enum import Enum
-import ast
 import hashlib
 
 

@@ -1,4 +1,4 @@
-import { Component, OnChanges, Input } from '@angular/core';
+import { Component, OnChanges, Input, Output, EventEmitter } from '@angular/core';
 
 import { ContractService } from '../../contract.service';
 import { Contract, Method } from '../../contract';
@@ -20,12 +20,14 @@ export class OperationComponent implements OnChanges {
 
   values: string[];
 
+  @Output() updateContractEvent = new EventEmitter<Contract>();
+
   ngOnChanges(): void {
     this.values = new Array(this.arguments.length);
   }
 
   call(): void {
     this.contractService.callContract( this.name, { name: this.method, values: this.values} as Method)
-      .subscribe();
+      .subscribe(contract => this.updateContractEvent.emit(contract));
   }
 }
