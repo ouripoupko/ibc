@@ -48,7 +48,7 @@ class Contract:
                                        list(getattr(self.obj, name).__code__.co_varnames)[1:]
                                        if not arg.startswith('_')]}
                         for name in method_names]
-        return {'msg': 'contract {} is running!'.format(self.name)}
+        return self.get_info()
 
     def get_info(self):
         values = [str(getattr(self.obj, attribute)) for attribute in self.members]

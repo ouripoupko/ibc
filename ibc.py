@@ -25,7 +25,7 @@ class IBC:
             reply = contract.call(params)
         return reply
 
-    def handle_contract(self, record):
+    def handle_contract(self, record, direct=False):
         params = record['params']
         path = record['path']
         print(params)
@@ -49,7 +49,7 @@ class IBC:
                 reply = {'reply': 'starting consensus protocol'}
         return reply
 
-    def handle_partner(self, record, my_address):
+    def handle_partner(self, record, my_address, direct=False):
         params = record['params']
         path = record['path']
         print(params)

@@ -17,7 +17,10 @@ class State:
         if my_address:  # my_address is supplied when initiator calls this method
             records = partner.get_contract(name)
             for record in records:
-                ibc.handle_contract(record)
+                if record['owner'] == 'contract':
+                    ibc.handle_contract(record, direct=True)
+                elif record['owner'] == 'partner':
+                    ibc.handle_partner(record, None, direct=True)
             partner.connect(name, my_address)
         contract = self.contracts.get(name)
         contract.connect(partner)
