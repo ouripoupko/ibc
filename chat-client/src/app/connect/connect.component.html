@@ -1,0 +1,16 @@
+<h1>{{title}}</h1>
+<div>Please point me to your digital agent</div>
+<mat-slider min="1" max="100" step="1" value="1"></mat-slider>
+<label>URL:
+  <select [(ngModel)]="address">
+    <option>http://localhost:5001/</option>
+  </select>
+</label>
+<button (click)="connect()">go</button>
+<ul *ngIf="contracts">
+  <li *ngFor="let contract of contracts">
+    <a routerLink="/chatpage/{{contract.name}}/0">
+      {{contract.name}}
+    </a>
+  </li>
+</ul>

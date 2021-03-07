@@ -1,0 +1,10 @@
+<div *ngIf="page">
+  <h2 *ngIf="page.parent; else elseBlock">{{page.parent.text}}</h2>
+  <ng-template #elseBlock><h2>Topics</h2></ng-template>
+  <div *ngFor="let statement of page.kids">
+    <a routerLink="/chatpage/{{contract.name}}/0">
+      {{contract.name}}
+    </a>
+    {{statement.text}}
+  </div>
+</div>
