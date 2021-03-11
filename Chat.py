@@ -8,9 +8,9 @@ class Chat:
         self._counter = 0
 
     def _create_statement(self, parent, text, reply_type=None):
-        record = {'parent': parent, 'kids': [],
-                  'text': text, 'reactions': {}, 'reply_type': reply_type}
         self._counter = self._counter + 1
+        record = {'parent': parent, 'me': self._counter, 'kids': [],
+                  'text': text, 'reactions': {}, 'reply_type': reply_type}
         self.statements[self._counter] = record
         return self._counter
 
@@ -44,3 +44,9 @@ class Chat:
         _chat = self.chats.get(counter)
         if _chat:
             _chat.append((pid, statement))
+
+    def get_page(self, counter):
+        if counter == 0:
+            return {'kids': [self.statements[stid] for stid in self.topics]}
+        return {'parent': self.statements[counter],
+                'kids': [self.statements[stid] for stid in self.statements[counter].get('kids')]}

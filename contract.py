@@ -30,11 +30,14 @@ class Contract:
         # return str({'class': 'Contract', 'name': self.name, 'partners': self.partners, 'state': state})
         return self.name
 
+    def handle_off_chain(self, method):
+        print("decorator state is running")
+
     def run(self):
         empty_locals = {}
         exec(self.code,
              {'__builtins__': {'__build_class__': __build_class__, '__name__': __name__,
-                               'str': str, 'int': int}}, empty_locals)
+                               'str': str, 'int': int, 'off_chain': self.handle_off_chain}}, empty_locals)
         # [f for f in dir(ClassName) if not f.startswith('_')]
         # args=method.__code__.co_varnames
         class_object = list(empty_locals.values())[0]
@@ -51,14 +54,16 @@ class Contract:
         return self.get_info()
 
     def get_info(self):
-        values = [str(getattr(self.obj, attribute)) for attribute in self.members]
+        values = [getattr(self.obj, attribute) for attribute in self.members]
         return {'name': self.name, 'contract': self.class_name, 'code': self.code,
                 'methods': self.methods, 'members': self.members, 'values': values}
 
     def call(self, msg):
         m = getattr(self.obj, msg['name'])
-        m(*msg['values'])
-        return self.get_info()
+        reply = m(*msg['values'])
+        if not reply:
+            reply = self.get_info()
+        return reply
 
     def connect(self, partner):
         self.partners.append(partner)

@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute,  Router} from '@angular/router';
 import { Page } from '../statement';
-import { Method } from '../contract';
+import { Contract, Method } from '../contract';
 import { ContractService } from '../contract.service';
 
 @Component({
@@ -10,7 +10,12 @@ import { ContractService } from '../contract.service';
   styleUrls: ['./chatpage.component.css']
 })
 export class ChatpageComponent implements OnInit {
+
+  contracts: Contract[];
   page: Page;
+  name: string;
+  id: number;
+  title: string;
 
   constructor(
     private route: ActivatedRoute,
@@ -19,18 +24,18 @@ export class ChatpageComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    if (this.contractService.getUrl()) {
-      this.getStatements();
+    this.name = this.route.snapshot.paramMap.get('name');
+    this.id = +this.route.snapshot.paramMap.get('id');
+    if (this.name) {
+      this.title = 'Topics';
     } else {
-      this.router.navigate(['/','connect'])
+      this.getContracts();
+      this.title = 'Choose a contract';
     }
   }
 
-  getStatements(): void {
-    const name = this.route.snapshot.paramMap.get('name');
-    const id = +this.route.snapshot.paramMap.get('id');
-    this.contractService.getStatements(name, { name: 'get_page', values: [id]} as Method)
-      .subscribe(page => this.page = page);
-
+  getContracts(): void {
+    this.contractService.getContracts()
+      .subscribe(contracts => this.contracts = contracts);
   }
 }

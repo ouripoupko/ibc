@@ -1,0 +1,14 @@
+<mat-accordion *ngIf="page" cdkDropList (cdkDropListDropped)="drop($event)">
+  <mat-expansion-panel *ngFor="let statement of page.kids" cdkDrag>
+    <mat-expansion-panel-header>
+      {{statement.text}}
+    </mat-expansion-panel-header>
+    <app-list [sid]="statement.me" [name]="name"></app-list>
+  </mat-expansion-panel>
+</mat-accordion>
+<form (submit)="submit(); inputField.blur()">
+  <mat-icon (click)="inputField.focus()">add</mat-icon>
+  <mat-form-field >
+    <input matInput placeholder="add new statement" [formControl]="statementForm" #inputField>
+  </mat-form-field>
+</form>

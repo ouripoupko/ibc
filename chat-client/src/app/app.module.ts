@@ -1,32 +1,40 @@
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
-import { FormsModule } from '@angular/forms'; // <-- NgModel lives here
+import { FormsModule, ReactiveFormsModule } from '@angular/forms'; // <-- NgModel lives here
 import { HttpClientModule } from '@angular/common/http';
 
 import { AppComponent } from './app.component';
 import { AppRoutingModule } from './app-routing.module';
-import { ConnectComponent } from './connect/connect.component';
 import { ChatpageComponent } from './chatpage/chatpage.component';
 
 import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
-import { MatSliderModule } from '@angular/material/slider';
+import {MatCardModule} from '@angular/material/card';
+import { ListComponent } from './chatpage/list/list.component';
+import {MatIconModule} from '@angular/material/icon';
+import {MatFormFieldModule} from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import {MatExpansionModule} from '@angular/material/expansion';
+import {DragDropModule} from '@angular/cdk/drag-drop';
 
 @NgModule({
   declarations: [
     AppComponent,
-    ConnectComponent,
-    ChatpageComponent
+    ChatpageComponent,
+    ListComponent
   ],
   imports: [
     HttpClientModule,
     FormsModule,
+    ReactiveFormsModule,
     BrowserModule,
-    MatSliderModule,
     BrowserAnimationsModule,
-    AppRoutingModule
-  ],
-  exports: [
-    MatSliderModule
+    AppRoutingModule,
+    MatCardModule,
+    MatExpansionModule,
+    MatIconModule,
+    MatFormFieldModule,
+    MatInputModule,
+    DragDropModule
   ],
   providers: [],
   bootstrap: [AppComponent]

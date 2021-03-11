@@ -4,7 +4,7 @@
 
   <h3>Members</h3>
   <div *ngFor="let member of contract.members; let i = index"><!--value = contract.values[index]">-->
-    {{member}}: {{contract.values[i]}}
+    {{member}}: {{stringify(contract.values[i])}}
   </div>
 
   <h3>Methods</h3>

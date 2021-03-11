@@ -4,6 +4,7 @@ export interface Reaction {
 
 export interface Statement {
   parent: number;
+  me: number;
   kids: number[];
   text: string;
   reactions: Reaction;

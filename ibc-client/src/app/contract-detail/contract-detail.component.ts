@@ -33,4 +33,7 @@ export class ContractDetailComponent implements OnInit {
   goBack(): void {
     this.location.back();
   }
+  stringify(something): string {
+    return JSON.stringify(something);
+  }
 }

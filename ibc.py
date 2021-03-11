@@ -28,20 +28,16 @@ class IBC:
     def handle_contract(self, record, direct=False):
         params = record['params']
         path = record['path']
-        print(params)
-        print(path)
         reply = {}
         if record['type'] == 'GET':
             if path:
                 reply = self.state.get_state(path)
             else:
-                reply = jsonify([{'name': name} for name in self.state.get_contracts()])
-                print(reply.get_json())
-                reply = reply
+                reply = [{'name': name} for name in self.state.get_contracts()]
         elif record['type'] == 'POST':
             self.chain.log(record)
             reply = self.state.add(params['name'], params['code'])
-        elif record['type'] == 'PUT':
+        elif record['type'] == 'PUT' or record['type'] == 'OPTIONS':
             contract = self.state.get(path)
             if contract.consent(record, True):
                 reply = self.commit(record)
@@ -52,8 +48,6 @@ class IBC:
     def handle_partner(self, record, my_address, direct=False):
         params = record['params']
         path = record['path']
-        print(params)
-        print(path)
         reply = {'reply': 'hello world'}
         if record['type'] == 'GET':
             reply = self.chain.get(path)
@@ -97,7 +91,9 @@ def view():  # pragma: no cover
 #  get identity    - receive the identity's name
 @app.route('/ibc/identity', methods=['GET'])
 def identity_handler():
-    return jsonify(ibc.me)
+    response = jsonify(ibc.me)
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
 
 
 # Create a URL route in our application for contracts
@@ -106,12 +102,20 @@ def identity_handler():
 #  put contract    - interact with a contract by executing a method
 #  delete contract - mark it terminated (history cannot be deleted)
 @app.route('/ibc/contract', methods=['GET', 'POST', 'PUT', 'DELETE'], defaults={'path': ''})
-@app.route('/ibc/contract/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@app.route('/ibc/contract/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def contract_handler(path):
+    if request.method == 'OPTIONS':
+        response = jsonify()
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Methods', 'PUT')
+        response.headers.add('Access-Control-Allow-Headers', 'content-type')
+        return response
     params = request.get_json()
 
     record = {'owner': 'contract', 'type': request.method, 'params': params, 'path': path}
-    return ibc.handle_contract(record)
+    response = jsonify(ibc.handle_contract(record))
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
 
 
 # Create a URL route in our application for partners

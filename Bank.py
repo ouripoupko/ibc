@@ -1,9 +1,13 @@
+from ctypes import *
+
+
 class Bank:
 
     def __init__(self):
         self.accounts = {}
 
     def create(self, pid):
+        p = create_string_buffer(3)
         self.accounts[pid] = 500
 
     def pay(self, from_pid, to_pid, amount):

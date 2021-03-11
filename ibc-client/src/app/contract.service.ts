@@ -50,6 +50,9 @@ export class ContractService {
   /** PUT **/
   callContract(name: string, method: Method): Observable<any> {
     const url = `${this.contractUrl}/${name}`;
+    console.log(url);
+    console.log(method);
+    console.log(this.httpOptions);
     return this.http.put<Contract>(url, method, this.httpOptions).pipe(
       tap(_ => this.log(`called contract name=${name} method=${method.name}`)),
       catchError(this.handleError<any>('callContract'))

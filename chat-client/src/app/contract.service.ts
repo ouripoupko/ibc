@@ -12,7 +12,8 @@ import { Page } from './statement';
 })
 export class ContractService {
 
-  private url: string;
+  private url = "http://localhost:5001/ibc/contract";
+
   httpOptions = {
     headers: new HttpHeaders({ 'Content-Type': 'application/json' })
   };
@@ -26,18 +27,24 @@ export class ContractService {
 
   getStatements(name: string, method: Method): Observable<Page> {
     const url = `${this.url}/${name}`;
-    console.log(url);
-    console.log(method);
-    console.log(this.httpOptions);
     return this.http.put<Page>(url, method, this.httpOptions).pipe(
       tap((page: Page) => console.log(page)),
       catchError(this.handleError<Page>(`getContract name=${name}`))
     );
   }
 
-  getContracts(address: string): Observable<Contract[]> {
-    this.url = `${address}ibc/contract`;
-    console.log(this.url);
+  createStatement(name: string, method: Method): Observable<any> {
+    const url = `${this.url}/${name}`;
+    console.log(url);
+    console.log(method);
+    console.log(this.httpOptions);
+    return this.http.put<any>(url, method, this.httpOptions).pipe(
+      tap(_ => console.log('created statement')),
+      catchError(this.handleError<any>(`createStatement name=${name}`))
+    );
+  }
+
+  getContracts(): Observable<Contract[]> {
     return this.http.get<Contract[]>(this.url).pipe(
         tap(_ => console.log('fetched contracts')),
         catchError(this.handleError<Contract[]>('getContracts', []))
