@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ContractService } from './contract.service';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-root',
@@ -8,18 +9,34 @@ import { ContractService } from './contract.service';
 })
 export class AppComponent implements OnInit {
 
-  owner: string;
+  names: string[];
+  agent: string;
+  newAgent: string;
   title ='The Identity BlockChain';
 
-  getIdentity(): void {
-    this.contractService.getIdentity()
-      .subscribe(name => this.owner = name);
+  getIdentities(): void {
+    this.contractService.getIdentities()
+      .subscribe(names => this.names = names);
   }
 
-  constructor(private contractService: ContractService) { }
+  constructor(
+    private router: Router,
+    private contractService: ContractService) { }
 
   ngOnInit(): void {
-    this.getIdentity();
+    this.getIdentities();
   }
 
+  onSelect(): void {
+    this.router.navigate([this.agent,'contracts']);
+  }
+
+  onAddAgent(): void {
+    console.log('try');
+    if(this.newAgent) {
+      console.log('will do');
+      this.contractService.setIdentity(this.newAgent)
+        .subscribe(names => this.names = names);
+    }
+  }
 }

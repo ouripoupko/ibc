@@ -1,0 +1,29 @@
+<mat-vertical-stepper #stepper>
+  <mat-step label="Select a server">
+    <mat-selection-list (selectionChange)="onServerChange($event, stepper)" [multiple]="false">
+      <mat-list-option [value]="'http://localhost:5001/'">
+        http://localhost:5001/
+      </mat-list-option>
+      <mat-list-option [value]="'http://localhost:5002/'">
+        http://localhost:5002/
+      </mat-list-option>
+      <mat-list-option [value]="'http://localhost:5003/'">
+        http://localhost:5003/
+      </mat-list-option>
+    </mat-selection-list>
+  </mat-step>
+  <mat-step label="Choose an identity">
+    <mat-selection-list *ngIf="identities" (selectionChange)="onIdentityChange($event, stepper)" [multiple]="false">
+      <mat-list-option *ngFor="let identity of identities" [value]="identity">
+        {{identity}}
+      </mat-list-option>
+    </mat-selection-list>
+  </mat-step>
+  <mat-step label="Select a contract">
+    <mat-selection-list *ngIf="contracts" (selectionChange)="onContractChange($event)" [multiple]="false">
+      <mat-list-option *ngFor="let contract of contracts" [value]="contract.name">
+        {{contract.name}}
+      </mat-list-option>
+    </mat-selection-list>
+  </mat-step>
+</mat-vertical-stepper>

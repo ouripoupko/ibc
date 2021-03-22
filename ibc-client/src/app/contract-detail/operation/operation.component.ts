@@ -14,6 +14,7 @@ export class OperationComponent implements OnChanges {
     private contractService: ContractService
   ) { }
 
+  @Input() agent: string;
   @Input() name: string;
   @Input() method: string;
   @Input() arguments: string[];
@@ -27,7 +28,7 @@ export class OperationComponent implements OnChanges {
   }
 
   call(): void {
-    this.contractService.callContract( this.name, { name: this.method, values: this.values} as Method)
+    this.contractService.callContract( this.agent, this.name, { name: this.method, values: this.values} as Method)
       .subscribe(contract => this.updateContractEvent.emit(contract));
   }
 }

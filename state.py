@@ -7,20 +7,17 @@ class State:
     def __init__(self):
         self.contracts = {}
 
-    def add(self, name, code):
-        contract = Contract(name, code)
+    def add(self, me, name, message):
+        contract = Contract(name, message['code'])
         self.contracts[name] = contract
-        return contract.run()
+        return contract.run(me)
 
-    def join(self, ibc, name, msg, my_address):
-        partner = Partner(msg['address'], msg['pid'], ibc.me)
+    def join(self, ibc, me, name, msg, my_address):
+        partner = Partner(msg['address'], msg['pid'], me)
         if my_address:  # my_address is supplied when initiator calls this method
             records = partner.get_contract(name)
             for record in records:
-                if record['owner'] == 'contract':
-                    ibc.handle_contract(record, direct=True)
-                elif record['owner'] == 'partner':
-                    ibc.handle_partner(record, None, direct=True)
+                ibc.handle_record(record, me, False, direct=True)
             partner.connect(name, my_address)
         contract = self.contracts.get(name)
         contract.connect(partner)

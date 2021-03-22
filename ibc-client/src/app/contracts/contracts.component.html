@@ -2,7 +2,7 @@
 
 <ul class="contracts">
   <li *ngFor="let contract of contracts">
-    <a routerLink="/detail/{{contract.name}}">
+    <a routerLink="/{{agent}}/{{contract.name}}/details">
       <span class="board">{{contract.name | slice : 0 : 2}}</span> {{contract.name}}
     </a>
   </li>

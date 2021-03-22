@@ -1,7 +1,4 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute,  Router} from '@angular/router';
-import { Page } from '../statement';
-import { Contract, Method } from '../contract';
 import { ContractService } from '../contract.service';
 
 @Component({
@@ -11,31 +8,15 @@ import { ContractService } from '../contract.service';
 })
 export class ChatpageComponent implements OnInit {
 
-  contracts: Contract[];
-  page: Page;
-  name: string;
   id: number;
   title: string;
 
   constructor(
-    private route: ActivatedRoute,
     private contractService: ContractService,
-    private router: Router,
   ) {}
 
   ngOnInit(): void {
-    this.name = this.route.snapshot.paramMap.get('name');
-    this.id = +this.route.snapshot.paramMap.get('id');
-    if (this.name) {
-      this.title = 'Topics';
-    } else {
-      this.getContracts();
-      this.title = 'Choose a contract';
-    }
-  }
-
-  getContracts(): void {
-    this.contractService.getContracts()
-      .subscribe(contracts => this.contracts = contracts);
+    this.id = 0;
+    this.title = 'Topics';
   }
 }

@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { Contract } from '../contract';
 import { ContractService } from '../contract.service';
 import { MessageService } from '../message.service';
+import { ActivatedRoute } from '@angular/router';
 
 @Component({
   selector: 'app-contracts',
@@ -10,16 +11,20 @@ import { MessageService } from '../message.service';
 })
 export class ContractsComponent implements OnInit {
 
+  agent: string;
   contracts: Contract[];
 
   getContracts(): void {
-    this.contractService.getContracts()
+    this.contractService.getContracts(this.agent)
       .subscribe(contracts => {this.contracts = contracts; console.log(contracts);});
   }
 
-  constructor(private contractService: ContractService) { }
+  constructor(
+      private route: ActivatedRoute,
+      private contractService: ContractService) { }
 
   ngOnInit(): void {
+    this.agent = this.route.snapshot.paramMap.get('agent');
     this.getContracts();
   }
 

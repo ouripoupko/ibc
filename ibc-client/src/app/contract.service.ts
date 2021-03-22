@@ -25,51 +25,54 @@ export class ContractService {
     this.messageService.add(`contractService: ${message}`);
   }
 
-  getIdentity(): Observable<string> {
-    return this.http.get<string>('identity');
+  getIdentities(): Observable<string[]> {
+    return this.http.get<string[]>('app');
+  }
+
+  setIdentity(name: string): Observable<string[]> {
+    return this.http.post<string[]>(`app/${name}`, {}, this.httpOptions).pipe(
+
+      tap(_ => this.log('added new identity')),
+      catchError(this.handleError<string[]>('setIdentity'))
+    );
   }
 
   /** GET **/
-  getContracts(): Observable<Contract[]> {
-    return this.http.get<Contract[]>(this.contractUrl)
+  getContracts(agent): Observable<Contract[]> {
+    return this.http.get<Contract[]>(`app/${agent}`)
       .pipe(
         tap(_ => this.log('fetched contracts')),
         catchError(this.handleError<Contract[]>('getContracts', []))
       );
   }
 
+  /** POST **/
+  addContract(agent: string, name: string, contract: Contract): Observable<Contract> {
+    return this.http.post<Contract>(`app/${agent}/${name}`, contract, this.httpOptions).pipe(
+      tap((newContract: Contract) => this.log(`added contract with name=${newContract.name}`)),
+      catchError(this.handleError<Contract>('addContract'))
+    );
+  }
+
   /** GET **/
-  getContract(name: string): Observable<Contract> {
-    const url = `${this.contractUrl}/${name}`;
-    return this.http.get<Contract>(url).pipe(
+  getContract(agent: string, name: string): Observable<Contract> {
+    return this.http.get<Contract>(`app/${agent}/${name}`, { 'params': {'request': 'state'}}).pipe(
       tap((newContract: Contract) => console.log(newContract)), //_ => this.log(`fetched contract name=${name}`); console.log(_);),
       catchError(this.handleError<Contract>(`getContract name=${name}`))
     );
   }
 
   /** PUT **/
-  callContract(name: string, method: Method): Observable<any> {
-    const url = `${this.contractUrl}/${name}`;
-    console.log(url);
-    console.log(method);
-    console.log(this.httpOptions);
-    return this.http.put<Contract>(url, method, this.httpOptions).pipe(
+  callContract(agent: string, name: string, method: Method): Observable<any> {
+    return this.http.put<Contract>(`app/${agent}/${name}`, method, this.httpOptions).pipe(
       tap(_ => this.log(`called contract name=${name} method=${method.name}`)),
       catchError(this.handleError<any>('callContract'))
     );
   }
 
   /** POST **/
-  addContract(contract: Contract): Observable<Contract> {
-    return this.http.post<Contract>(`${this.contractUrl}/${contract.name}`, contract, this.httpOptions).pipe(
-      tap((newContract: Contract) => this.log(`added contract with name=${newContract.name}`)),
-      catchError(this.handleError<Contract>('addContract'))
-    );
-  }
-
-  /** POST **/
-  connect(address: string, pid: string, name: string): Observable<Contract> {
-    return this.http.post(`partner/${name}`, { address: address, pid: pid }, this.httpOptions).pipe(
+  connect(agent: string, address: string, pid: string, name: string): Observable<Contract> {
+    return this.http.post(`app/${agent}/${name}`, { address: address, pid: pid }, this.httpOptions).pipe(
       tap(_ => this.log(`connected to ${address} with contract ${name}`)),
       catchError(this.handleError<any>('connect'))
     );

@@ -6,11 +6,11 @@ import { ContractDetailComponent } from './contract-detail/contract-detail.compo
 import { PartnerComponent } from './partner/partner.component';
 
 const routes: Routes = [
-  { path: '', redirectTo: '/contracts', pathMatch: 'full' },
-  { path: 'contracts', component: ContractsComponent },
-  { path: 'detail/:name', component: ContractDetailComponent },
-  { path: 'deploy', component: DeployComponent },
-  { path: 'partner', component: PartnerComponent },
+//  { path: '' },
+  { path: ':agent/contracts', component: ContractsComponent },
+  { path: ':agent/:name/details', component: ContractDetailComponent },
+  { path: ':agent/deploy', component: DeployComponent },
+  { path: ':agent/partner', component: PartnerComponent },
 ];
 
 

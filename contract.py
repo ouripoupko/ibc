@@ -33,11 +33,11 @@ class Contract:
     def handle_off_chain(self, method):
         print("decorator state is running")
 
-    def run(self):
+    def run(self, me):
         empty_locals = {}
         exec(self.code,
              {'__builtins__': {'__build_class__': __build_class__, '__name__': __name__,
-                               'str': str, 'int': int, 'off_chain': self.handle_off_chain}}, empty_locals)
+                               'str': str, 'int': int, 'master': me, 'off_chain': self.handle_off_chain}}, empty_locals)
         # [f for f in dir(ClassName) if not f.startswith('_')]
         # args=method.__code__.co_varnames
         class_object = list(empty_locals.values())[0]
@@ -96,9 +96,9 @@ class Contract:
             for partner in self.partners:
                 partner.consent(self.name, ProtocolStep.PREPARE.name, hash_code)
         else:
-            step = ProtocolStep[record['params']['msg']['step']]
+            step = ProtocolStep[record['message']['msg']['step']]
             if step == ProtocolStep.LEADER:
-                original_record = record['params']['msg']['data']
+                original_record = record['message']['msg']['data']
                 hash_code = self.get_ready(original_record)
                 delayed = self.delayed.get(hash_code, [])
                 for partner in self.partners:
@@ -106,8 +106,8 @@ class Contract:
                 for delayed_record in delayed:
                     self.consent(delayed_record, False)
             else:
-                hash_code = record['params']['msg']['data']
-                from_pid = record['params']['from']
+                hash_code = record['message']['msg']['data']
+                from_pid = record['message']['from']
                 if not self.keep.get(hash_code):
                     if not self.delayed.get(hash_code):
                         self.delayed[hash_code] = []
@@ -130,4 +130,4 @@ class Contract:
         return False
 
     def get_consent_result(self, record):
-        return self.done(record['params']['msg']['data'])
+        return self.done(record['message']['msg']['data'])

@@ -14,6 +14,7 @@ export class ContractDetailComponent implements OnInit {
 
   @Input() contract: Contract;
   name: string;
+  agent: string;
 
   constructor(
     private route: ActivatedRoute,
@@ -22,12 +23,13 @@ export class ContractDetailComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.agent = this.route.snapshot.paramMap.get('agent');
     this.getContract()
   }
 
   getContract(): void {
     this.name = this.route.snapshot.paramMap.get('name');
-    this.contractService.getContract(this.name).subscribe(contract => this.contract = contract);
+    this.contractService.getContract(this.agent, this.name).subscribe(contract => this.contract = contract);
   }
 
   goBack(): void {

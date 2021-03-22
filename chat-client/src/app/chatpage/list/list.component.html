@@ -3,6 +3,9 @@
     <mat-expansion-panel-header>
       {{statement.text}}
     </mat-expansion-panel-header>
+    <mat-panel-description>
+      {{statement.owner}}
+    </mat-panel-description>
     <app-list [sid]="statement.me" [name]="name"></app-list>
   </mat-expansion-panel>
 </mat-accordion>

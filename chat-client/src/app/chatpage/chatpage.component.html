@@ -1,13 +1,6 @@
 <mat-card>
   <mat-card-title>{{title}}</mat-card-title>
   <mat-card-content>
-    <app-list *ngIf="name" [sid]=0 [name]="name"></app-list>
-    <mat-list *ngIf="contracts">
-      <mat-list-item *ngFor="let contract of contracts">
-        <a routerLink="/chatpage/{{contract.name}}/0">
-          {{contract.name}}
-        </a>
-      </mat-list-item>
-    </mat-list>
+    <app-list [sid]="id"></app-list>
   </mat-card-content>
 </mat-card>

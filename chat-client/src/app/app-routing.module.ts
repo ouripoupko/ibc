@@ -1,11 +1,11 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { ChatpageComponent } from './chatpage/chatpage.component';
+import { HomepageComponent } from './homepage/homepage.component';
 
 const routes: Routes = [
-  { path: '', redirectTo: '/chatpage', pathMatch: 'full' },
-  { path: 'chatpage/:name/:id', component: ChatpageComponent },
-  { path: 'chatpage', component: ChatpageComponent }
+  { path: '', component: HomepageComponent},
+  { path: 'chat', component: ChatpageComponent }
 ];
 
 

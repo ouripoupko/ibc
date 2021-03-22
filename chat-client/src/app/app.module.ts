@@ -15,12 +15,16 @@ import {MatFormFieldModule} from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import {MatExpansionModule} from '@angular/material/expansion';
 import {DragDropModule} from '@angular/cdk/drag-drop';
+import { HomepageComponent } from './homepage/homepage.component';
+import {MatListModule} from '@angular/material/list';
+import {MatStepperModule} from '@angular/material/stepper';
 
 @NgModule({
   declarations: [
     AppComponent,
     ChatpageComponent,
-    ListComponent
+    ListComponent,
+    HomepageComponent
   ],
   imports: [
     HttpClientModule,
@@ -34,7 +38,9 @@ import {DragDropModule} from '@angular/cdk/drag-drop';
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
-    DragDropModule
+    DragDropModule,
+    MatListModule,
+    MatStepperModule
   ],
   providers: [],
   bootstrap: [AppComponent]

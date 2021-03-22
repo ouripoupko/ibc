@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 
 import { ContractService } from '../contract.service';
 import { Contract } from '../contract';
@@ -10,16 +11,19 @@ import { Contract } from '../contract';
 })
 export class DeployComponent implements OnInit {
 
+  agent: string;
 	compInfo: string = "Loading...";
 	fileFound: boolean = false;
 
   constructor(
+    private route: ActivatedRoute,
     private contractService: ContractService
   ) {
     this.compInfo = "no contract selected yet"
   }
 
   ngOnInit(): void {
+    this.agent = this.route.snapshot.paramMap.get('agent');
   }
 
 	fileChanged($event):void {
@@ -38,7 +42,7 @@ export class DeployComponent implements OnInit {
     name = name.trim();
     if (!name) { return; }
     if (!this.fileFound) { return; }
-    this.contractService.addContract({ name: name, code: this.compInfo } as Contract)
+    this.contractService.addContract(this.agent, name, { code: this.compInfo } as Contract)
       .subscribe();
     this.compInfo = "no contract selected yet"
 		this.fileFound = false;
