@@ -1,10 +1,12 @@
 import sys
 from flask import Flask, request, send_from_directory, render_template, jsonify
+from flask_cors import CORS
 from state import State
 from blockchain import BlockChain
 
 # Create the application instance
 app = Flask(__name__, static_folder='ibc')
+CORS(app)
 
 
 class IBC:
@@ -20,6 +22,7 @@ class IBC:
     def commit(self, record, identity, internal):
         record_type = record['type']
         contract_name = record['contract']
+        method = record['method']
         message = record['message']
         reply = {}
         self.chain[identity].log(record)
@@ -27,55 +30,72 @@ class IBC:
         if internal and record_type == 'POST':
             reply = self.state[identity].join(ibc, identity, contract_name, message['msg'], None)
         elif record_type == 'PUT':
-            reply = contract.call(message)
+            reply = contract.call(record['caller'], method, message)
         return reply
 
     def handle_record(self, record, identity, internal, direct=False):
         record_type = record['type']
         contract_name = record['contract']
+        method = record['method']
         message = record['message']
         reply = {}
         if identity in self.agents:
-            if record_type == 'GET':
-                if contract_name:
-                    if internal:
-                        reply = self.chain[identity].get(contract_name)
-                    else:
-                        reply = self.state[identity].get_state(contract_name)
+            if contract_name:
+                if method:
+                    if record_type == 'PUT':
+                        # a client is calling a method
+                        contract = self.state[identity].get(contract_name)
+                        if direct or contract.consent(record, True):
+                            reply = self.commit(record, identity, internal)
+                        else:
+                            reply = {'reply': 'starting consensus protocol'}
+                    elif record_type == 'POST':
+                        # a client calls an off chain method
+                        contract = self.state[identity].get(contract_name)
+                        reply = contract.call_off_chain(record['caller'], method, message)
                 else:
-                    reply = [{'name': name} for name in self.state[identity].get_contracts()]
-            elif record_type == 'POST' and contract_name:
-                if message.get('code'):
-                    self.chain[identity].log(record)
-                    reply = self.state[identity].add(identity, contract_name, message)
-                elif internal or direct:
-                    contract = self.state[identity].get(contract_name)
-                    if direct or contract.consent(record, True):
-                        reply = self.commit(record, identity, internal)
-                    else:
-                        reply = {'reply': 'starting consensus protocol'}
-                else:  # this is the initiator of the join request
-                    reply = self.state[identity].join(ibc, identity, contract_name, message, self.my_address)
-
-            elif record_type == 'PUT':
-                contract = self.state[identity].get(contract_name)
-                if internal:
-                    if direct or contract.consent(record, False):
-                        original_record = contract.get_consent_result(record)
-                        reply = self.commit(original_record, identity, internal)
-                else:
-                    if direct or contract.consent(record, True):
-                        reply = self.commit(record, identity, internal)
-                    else:
-                        reply = {'reply': 'starting consensus protocol'}
-
+                    if record_type == 'GET':
+                        if internal:
+                            # a partner asks for a ledger history
+                            reply = self.chain[identity].get(contract_name)
+                        else:
+                            # a client asks for a contract state
+                            reply = self.state[identity].get_state(contract_name)
+                    elif record_type == 'PUT':
+                        contract = self.state[identity].get(contract_name)
+                        if internal:
+                            # a partner is calling a method
+                            if direct or contract.consent(record, False):
+                                original_record = contract.get_consent_result(record)
+                                reply = self.commit(original_record, identity, internal)
+                    elif record_type == 'POST':
+                        if message.get('code'):
+                            # a client deploys a contract
+                            self.chain[identity].log(record)
+                            reply = self.state[identity].add(identity, contract_name, message)
+                        elif internal or direct:
+                            # a partner requests to join
+                            contract = self.state[identity].get(contract_name)
+                            if direct or contract.consent(record, True):
+                                reply = self.commit(record, identity, internal)
+                            else:
+                                reply = {'reply': 'starting consensus protocol'}
+                        else:  # this is the initiator of the join request
+                            # a client requests a join
+                            reply = self.state[identity].join(ibc, identity, contract_name, message,
+                                                              self.my_address)
+            else:
+                # a client asks for a list of contracts
+                reply = [{'name': name} for name in self.state[identity].get_contracts()]
         elif identity:
             if record_type == "POST":
+                # a client adds an identity
                 self.agents.append(identity)
                 self.state[identity] = State()
                 self.chain[identity] = BlockChain()
                 reply = self.agents
         else:
+            # a client asks for a list of identities
             if record_type == 'GET':
                 reply = self.agents
         return reply
@@ -105,7 +125,7 @@ def view():  # pragma: no cover
            defaults={'identity': '', 'contract': '', 'method': ''})
 @app.route('/ibc/app/<identity>', methods=['GET', 'POST', 'PUT', 'DELETE'],
            defaults={'contract': '', 'method': ''})
-@app.route('/ibc/app/<identity>/<contract>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+@app.route('/ibc/app/<identity>/<contract>', methods=['GET', 'POST', 'PUT', 'DELETE'],  #, 'OPTIONS'],
            defaults={'method': ''})
 @app.route('/ibc/app/<identity>/<contract>/<method>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def ibc_handler(identity, contract, method):
@@ -122,6 +142,8 @@ def ibc_handler(identity, contract, method):
               'contract': contract,
               'method': method,
               'message': msg}
+    if not internal:
+        record['caller'] = identity
     response = jsonify(ibc.handle_record(record, identity, internal))
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response

@@ -56,16 +56,16 @@ export class ContractService {
 
   /** GET **/
   getContract(agent: string, name: string): Observable<Contract> {
-    return this.http.get<Contract>(`app/${agent}/${name}`, { 'params': {'request': 'state'}}).pipe(
+    return this.http.get<Contract>(`app/${agent}/${name}`).pipe(
       tap((newContract: Contract) => console.log(newContract)), //_ => this.log(`fetched contract name=${name}`); console.log(_);),
       catchError(this.handleError<Contract>(`getContract name=${name}`))
     );
   }
 
   /** PUT **/
-  callContract(agent: string, name: string, method: Method): Observable<any> {
-    return this.http.put<Contract>(`app/${agent}/${name}`, method, this.httpOptions).pipe(
-      tap(_ => this.log(`called contract name=${name} method=${method.name}`)),
+  callContract(agent: string, contract: string, method: string, args: Method): Observable<any> {
+    return this.http.put<Contract>(`app/${agent}/${contract}/${method}`, args, this.httpOptions).pipe(
+      tap(_ => this.log(`called contract name=${contract} method=${method}`)),
       catchError(this.handleError<any>('callContract'))
     );
   }

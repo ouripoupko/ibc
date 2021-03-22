@@ -9,7 +9,7 @@ class Chat:
 
     def _create_statement(self, parent, text, reply_type=None):
         self._counter = self._counter + 1
-        record = {'parent': parent, 'me': self._counter, 'kids': [], 'owner': master,
+        record = {'parent': parent, 'me': self._counter, 'kids': [], 'owner': master(),
                   'text': text, 'reactions': {}, 'reply_type': reply_type}
         self.statements[self._counter] = record
         return self._counter

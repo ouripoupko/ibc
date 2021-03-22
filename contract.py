@@ -24,6 +24,7 @@ class Contract:
         self.commit_state = {}
         self.keep = {}
         self.delayed = {}
+        self.caller = None
 
     def __repr__(self):
         # state = ast.literal_eval(repr(self.obj))
@@ -33,11 +34,15 @@ class Contract:
     def handle_off_chain(self, method):
         print("decorator state is running")
 
-    def run(self, me):
+    def master(self):
+        return self.caller
+
+    def run(self, caller):
+        self.caller = caller
         empty_locals = {}
         exec(self.code,
              {'__builtins__': {'__build_class__': __build_class__, '__name__': __name__,
-                               'str': str, 'int': int, 'master': me, 'off_chain': self.handle_off_chain}}, empty_locals)
+                               'str': str, 'int': int, 'print': print, 'master': self.master, 'off_chain': self.handle_off_chain}}, empty_locals)
         # [f for f in dir(ClassName) if not f.startswith('_')]
         # args=method.__code__.co_varnames
         class_object = list(empty_locals.values())[0]
@@ -58,8 +63,17 @@ class Contract:
         return {'name': self.name, 'contract': self.class_name, 'code': self.code,
                 'methods': self.methods, 'members': self.members, 'values': values}
 
-    def call(self, msg):
-        m = getattr(self.obj, msg['name'])
+    def call(self, caller, method, msg):
+        self.caller = caller
+        m = getattr(self.obj, method)
+        reply = m(*msg['values'])
+        if not reply:
+            reply = self.get_info()
+        return reply
+
+    def call_off_chain(self, caller, method, msg):
+        self.caller = caller
+        m = getattr(self.obj, method)
         reply = m(*msg['values'])
         if not reply:
             reply = self.get_info()

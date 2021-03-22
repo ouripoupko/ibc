@@ -48,15 +48,15 @@ export class ContractService {
   }
 
   getStatements(method: Method): Observable<Page> {
-    const url = `${this.url}/${this.identity}/${this.contract}`;
-    return this.http.put<Page>(url, method, this.httpOptions).pipe(
+    const url = `${this.url}/${this.identity}/${this.contract}/${method.name}`;
+    return this.http.post<Page>(url, method, this.httpOptions).pipe(
       tap((page: Page) => console.log(page)),
       catchError(this.handleError<Page>(`getContract name=${name}`))
     );
   }
 
   createStatement(method: Method): Observable<any> {
-    const url = `${this.url}/${this.identity}/${this.contract}`;
+    const url = `${this.url}/${this.identity}/${this.contract}/${method.name}`;
     return this.http.put<any>(url, method, this.httpOptions).pipe(
       tap(_ => console.log('created statement')),
       catchError(this.handleError<any>(`createStatement name=${name}`))

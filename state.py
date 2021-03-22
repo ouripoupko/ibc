@@ -7,10 +7,10 @@ class State:
     def __init__(self):
         self.contracts = {}
 
-    def add(self, me, name, message):
+    def add(self, caller, name, message):
         contract = Contract(name, message['code'])
         self.contracts[name] = contract
-        return contract.run(me)
+        return contract.run(caller)
 
     def join(self, ibc, me, name, msg, my_address):
         partner = Partner(msg['address'], msg['pid'], me)
