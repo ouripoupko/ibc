@@ -1,5 +1,6 @@
 import sys
-from flask import Flask, request, send_from_directory, render_template, jsonify
+import time
+from flask import Flask, request, send_from_directory, render_template, jsonify, Response
 from flask_cors import CORS
 from state import State
 from blockchain import BlockChain
@@ -147,6 +148,23 @@ def ibc_handler(identity, contract, method):
     response = jsonify(ibc.handle_record(record, identity, internal))
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
+
+
+@app.route('/stream/<identity_name>/<contract_name>')
+def stream(identity_name, contract_name):
+    def event_stream():
+        identity = ibc.state.get(identity_name)
+        if identity:
+            contract = identity.get(contract_name)
+            if contract:
+                yield 'data: \n\n'
+                while True:
+                    print("working")
+                    # wait for source data to be available, then push it
+                    with contract:
+                        contract.wait()
+                    yield 'data: \n\n'
+    return Response(event_stream(), mimetype="text/event-stream")
 
 
 class LoggingMiddleware(object):

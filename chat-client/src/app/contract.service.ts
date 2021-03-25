@@ -5,7 +5,7 @@ import { Observable, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 
 import { Contract, Method } from './contract';
-import { Page } from './statement';
+import { Statement } from './statement';
 
 @Injectable({
   providedIn: 'root'
@@ -28,8 +28,8 @@ export class ContractService {
   }
 
   getIdentities(server: string): Observable<string[]> {
-    this.url = `${server}ibc/app`
-    return this.http.get<string[]>(this.url).pipe(
+    this.url = server;
+    return this.http.get<string[]>(`${this.url}ibc/app`).pipe(
         tap(_ => console.log('fetched identities')),
         catchError(this.handleError<string[]>('getIdentities', []))
       );
@@ -37,7 +37,7 @@ export class ContractService {
 
   getContracts(identity: string): Observable<Contract[]> {
     this.identity = identity;
-    return this.http.get<Contract[]>(`${this.url}/${this.identity}`).pipe(
+    return this.http.get<Contract[]>(`${this.url}ibc/app/${this.identity}`).pipe(
         tap(_ => console.log('fetched contracts')),
         catchError(this.handleError<Contract[]>('getContracts', []))
       );
@@ -47,16 +47,21 @@ export class ContractService {
     this.contract = contract;
   }
 
-  getStatements(method: Method): Observable<Page> {
-    const url = `${this.url}/${this.identity}/${this.contract}/${method.name}`;
-    return this.http.post<Page>(url, method, this.httpOptions).pipe(
-      tap((page: Page) => console.log(page)),
-      catchError(this.handleError<Page>(`getContract name=${name}`))
+
+  listen(): EventSource {
+    return new EventSource(`${this.url}stream/${this.identity}/${this.contract}`);
+  }
+
+  getStatements(method: Method): Observable<Statement[]> {
+    const url = `${this.url}ibc/app/${this.identity}/${this.contract}/${method.name}`;
+    return this.http.post<Statement[]>(url, method, this.httpOptions).pipe(
+//      tap((list: Statement[]) => console.log(list)),
+      catchError(this.handleError<Statement[]>(`getContract name=${name}`))
     );
   }
 
   createStatement(method: Method): Observable<any> {
-    const url = `${this.url}/${this.identity}/${this.contract}/${method.name}`;
+    const url = `${this.url}ibc/app/${this.identity}/${this.contract}/${method.name}`;
     return this.http.put<any>(url, method, this.httpOptions).pipe(
       tap(_ => console.log('created statement')),
       catchError(this.handleError<any>(`createStatement name=${name}`))

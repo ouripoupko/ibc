@@ -10,9 +10,6 @@ export interface Statement {
   text: string;
   reactions: Reaction;
   reply_type: string;
-}
-
-export interface Page {
-  parent: Statement;
-  kids: Statement[];
+  version: number;
+  kids_version: number;
 }

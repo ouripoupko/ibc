@@ -1,5 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { ContractService } from '../contract.service';
+import { Statement } from '../statement'
+import { Method } from '../contract';
 
 @Component({
   selector: 'app-chatpage',
@@ -10,6 +12,7 @@ export class ChatpageComponent implements OnInit {
 
   id: number;
   title: string;
+  counter: number = 0;
 
   constructor(
     private contractService: ContractService,
@@ -18,5 +21,8 @@ export class ChatpageComponent implements OnInit {
   ngOnInit(): void {
     this.id = 0;
     this.title = 'Topics';
+    this.contractService.listen().addEventListener('message', message => {
+      this.counter = this.counter + 1;
+    });
   }
 }

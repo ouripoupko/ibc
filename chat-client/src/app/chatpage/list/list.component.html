@@ -1,12 +1,12 @@
-<mat-accordion *ngIf="page" cdkDropList (cdkDropListDropped)="drop($event)">
-  <mat-expansion-panel *ngFor="let statement of page.kids" cdkDrag>
+<mat-accordion *ngIf="order" cdkDropList (cdkDropListDropped)="drop($event)">
+  <mat-expansion-panel *ngFor="let index of order" cdkDrag>
     <mat-expansion-panel-header>
-      {{statement.text}}
+      {{kids[index].text}}
     </mat-expansion-panel-header>
     <mat-panel-description>
-      {{statement.owner}}
+      {{kids[index].owner}}
     </mat-panel-description>
-    <app-list [sid]="statement.me" [name]="name"></app-list>
+    <app-list [sid]="kids[index].me" [version]="kids[index].kids_version"></app-list>
   </mat-expansion-panel>
 </mat-accordion>
 <form (submit)="submit(); inputField.blur()">

@@ -1,8 +1,7 @@
-import { Component, OnInit, Input } from '@angular/core';
-import { Page } from '../../statement';
+import { Component, OnInit, Input, OnChanges } from '@angular/core';
+import { Statement } from '../../statement';
 import { Method } from '../../contract';
 import { FormControl } from '@angular/forms';
-import { MatInput } from '@angular/material/input';
 import { ContractService } from '../../contract.service';
 import {CdkDragDrop, moveItemInArray} from '@angular/cdk/drag-drop';
 
@@ -11,43 +10,61 @@ import {CdkDragDrop, moveItemInArray} from '@angular/cdk/drag-drop';
   templateUrl: './list.component.html',
   styleUrls: ['./list.component.css']
 })
-export class ListComponent implements OnInit {
+export class ListComponent implements OnInit, OnChanges {
 
   @Input() sid: number;
-  page: Page;
-  newItem: boolean;
+  kids: {[id: number]: Statement} = {};
+  order: number[] = []
   statementForm: FormControl = new FormControl();
+  @Input() version: number;
 
   constructor( private contractService: ContractService ) { }
 
   ngOnInit(): void {
-    this.newItem = false;
+    console.log(this.sid)
+  }
+
+  ngOnChanges(): void {
     this.getStatements();
   }
 
   submit() {
-    this.newItem = false;
     this.createStatement(this.statementForm.value);
     this.statementForm.setValue("");
   }
 
   createStatement(statement): void {
-    const method = this.page.parent ? { name: 'reply', values: [this.page.parent.me, statement, 'not now please']} as Method :
+    const method = this.sid > 0 ? { name: 'reply', values: [this.sid, statement, 'not now please']} as Method :
                                         { name: 'create_topic', values: [statement]} as Method;
-    const id = this.page.parent ? this.page.parent.me : 0;
     this.contractService.createStatement(method)
       .subscribe();
-    this.contractService.getStatements({ name: 'get_page', values: [id]} as Method)
-      .subscribe(page => this.page = page);
-
   }
+
   getStatements(): void {
-    this.contractService.getStatements({ name: 'get_page', values: [this.sid]} as Method)
-      .subscribe(page => this.page = page );
+    this.contractService.getStatements({ name: 'get_kids', values: [this.sid]} as Method)
+      .subscribe(list => {
+        for(let statement of list) {
+          let sid = statement.me;
+          let stored = null;
+          if(sid in this.kids) {
+            stored = this.kids[sid];
+          }
+          if(stored) {
+            if(stored.version != statement.version) {
+            }
+            if(stored.kids_version != statement.kids_version) {
+              stored.kids_version = statement.kids_version
+            }
+          } else {
+            this.kids[sid] = statement;
+            this.order.push(statement.me);
+          }
+        }
+      });
 
   }
 
   drop(event: CdkDragDrop<string[]>) {
-    moveItemInArray(this.page.kids, event.previousIndex, event.currentIndex);
+    moveItemInArray(this.order, event.previousIndex, event.currentIndex);
   }
 }

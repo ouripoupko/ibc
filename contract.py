@@ -1,5 +1,6 @@
 from builtins import __build_class__
 from enum import Enum
+from threading import Condition
 import hashlib
 
 
@@ -10,8 +11,9 @@ class ProtocolStep(Enum):
     DONE = 4
 
 
-class Contract:
+class Contract(Condition):
     def __init__(self, name, code):
+        Condition.__init__(self)
         self.name = name
         self.class_name = ''
         self.code = code
@@ -69,13 +71,15 @@ class Contract:
         reply = m(*msg['values'])
         if not reply:
             reply = self.get_info()
+        with self:
+            self.notify_all()
         return reply
 
     def call_off_chain(self, caller, method, msg):
         self.caller = caller
         m = getattr(self.obj, method)
         reply = m(*msg['values'])
-        if not reply:
+        if reply is None:
             reply = self.get_info()
         return reply
 
