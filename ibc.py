@@ -4,6 +4,7 @@ from flask import Flask, request, send_from_directory, render_template, jsonify,
 from flask_cors import CORS
 from state import State
 from blockchain import BlockChain
+from storage import StorageBridge
 
 # Create the application instance
 app = Flask(__name__, static_folder='ibc')
@@ -13,12 +14,15 @@ CORS(app)
 class IBC:
     def __init__(self, my_address):
         self.my_address = my_address
-        self.agents = []
+        self.storage_bridge = StorageBridge()
+        self.storage_bridge.connect()
+        self.agents = self.storage_bridge.get_collection('ibc', 'agents')
         self.state = {}
         self.chain = {}
         for agent in self.agents:
-            self.state[agent] = State()
-            self.chain[agent] = BlockChain()
+            self.state[agent['name']] = State(agent['name'], self.storage_bridge)
+            ledger = self.storage_bridge.get_collection(agent['name'], agent['name']+'_ledger')
+            self.chain[agent['name']] = BlockChain(ledger)
 
     def commit(self, record, identity, internal):
         record_type = record['type']
@@ -40,7 +44,7 @@ class IBC:
         method = record['method']
         message = record['message']
         reply = {}
-        if identity in self.agents:
+        if {'name': identity} in self.agents:
             if contract_name:
                 if method:
                     if record_type == 'PUT':
@@ -91,14 +95,14 @@ class IBC:
         elif identity:
             if record_type == "POST":
                 # a client adds an identity
-                self.agents.append(identity)
-                self.state[identity] = State()
-                self.chain[identity] = BlockChain()
-                reply = self.agents
+                self.agents.append({'name': identity})
+                self.state[identity] = State(identity, self.storage_bridge)
+                self.chain[identity] = BlockChain(self.storage_bridge.get_collection(identity, identity+'_ledger'))
+                reply = [agent['name'] for agent in self.agents]
         else:
             # a client asks for a list of identities
             if record_type == 'GET':
-                reply = self.agents
+                reply = [agent['name'] for agent in self.agents]
         return reply
 
 
@@ -187,4 +191,4 @@ if __name__ == '__main__':
     port = sys.argv[2]
     ibc = IBC(address)
     app.wsgi_app = LoggingMiddleware(app.wsgi_app)
-    app.run(debug=True, port=port)  #, threaded=False)
+    app.run(port=port, debug=True, use_reloader=False)  #, threaded=False)

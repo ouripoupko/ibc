@@ -12,8 +12,10 @@ class ProtocolStep(Enum):
 
 
 class Contract(Condition):
-    def __init__(self, name, code):
+    def __init__(self, storage_bridge, agent, name, code):
         Condition.__init__(self)
+        self.storage_bridge = storage_bridge
+        self.agent = agent
         self.name = name
         self.class_name = ''
         self.code = code
@@ -39,12 +41,17 @@ class Contract(Condition):
     def master(self):
         return self.caller
 
+    def get_storage(self, name):
+        return self.storage_bridge.get_collection(self.agent, self.name+'_'+name)
+
     def run(self, caller):
         self.caller = caller
         empty_locals = {}
         exec(self.code,
-             {'__builtins__': {'__build_class__': __build_class__, '__name__': __name__,
-                               'str': str, 'int': int, 'print': print, 'master': self.master, 'off_chain': self.handle_off_chain}}, empty_locals)
+             {'__builtins__':
+              {'__build_class__': __build_class__, '__name__': __name__,
+               'str': str, 'int': int, 'print': print, 'master': self.master,
+               'Storage': self.get_storage, 'off_chain': self.handle_off_chain}}, empty_locals)
         # [f for f in dir(ClassName) if not f.startswith('_')]
         # args=method.__code__.co_varnames
         class_object = list(empty_locals.values())[0]
@@ -61,7 +68,7 @@ class Contract(Condition):
         return self.get_info()
 
     def get_info(self):
-        values = [getattr(self.obj, attribute) for attribute in self.members]
+        values = [list(iter(getattr(self.obj, attribute))) for attribute in self.members]
         return {'name': self.name, 'contract': self.class_name, 'code': self.code,
                 'methods': self.methods, 'members': self.members, 'values': values}
 
