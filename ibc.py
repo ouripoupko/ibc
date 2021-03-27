@@ -106,7 +106,7 @@ class IBC:
         return reply
 
 
-ibc = None
+ibc = IBC('https://dashboard.heroku.com/')
 
 
 @app.route('/favicon.ico')
