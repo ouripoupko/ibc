@@ -1,1 +1,1 @@
-web: gunicorn app:ibc
+web: gunicorn ibc:app
