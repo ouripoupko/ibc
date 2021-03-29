@@ -6,7 +6,7 @@
     <mat-panel-description>
       {{kids[index].owner}}
     </mat-panel-description>
-    <app-list [sid]="kids[index].me" [version]="kids[index].kids_version"></app-list>
+    <app-list [sid]="index" [version]="kids[index].kids_version"></app-list>
   </mat-expansion-panel>
 </mat-accordion>
 <form (submit)="submit(); inputField.blur()">

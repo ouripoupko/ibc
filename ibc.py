@@ -1,10 +1,9 @@
 import sys
-import time
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
 from flask_cors import CORS
 from state import State
 from blockchain import BlockChain
-from storage import StorageBridge
+from firebase_storage import StorageBridge, Storage
 
 # Create the application instance
 app = Flask(__name__, static_folder='ibc')
@@ -16,13 +15,13 @@ class IBC:
         self.my_address = my_address
         self.storage_bridge = StorageBridge()
         self.storage_bridge.connect()
-        self.agents = self.storage_bridge.get_collection('ibc', 'agents')
+        self.agents = Storage(self.storage_bridge.ibc)
         self.state = {}
         self.chain = {}
         for agent in self.agents:
-            self.state[agent['name']] = State(agent['name'], self.storage_bridge)
-            ledger = self.storage_bridge.get_collection(agent['name'], agent['name']+'_ledger')
-            self.chain[agent['name']] = BlockChain(ledger)
+            self.state[agent] = State(agent, self.storage_bridge)
+            ledger = self.storage_bridge.get_collection(agent, 'ledger')
+            self.chain[agent] = BlockChain(ledger)
 
     def commit(self, record, identity, internal):
         record_type = record['type']
@@ -44,7 +43,7 @@ class IBC:
         method = record['method']
         message = record['message']
         reply = {}
-        if {'name': identity} in self.agents:
+        if identity in self.agents:
             if contract_name:
                 if method:
                     if record_type == 'PUT':
@@ -95,14 +94,14 @@ class IBC:
         elif identity:
             if record_type == "POST":
                 # a client adds an identity
-                self.agents.append({'name': identity})
+                self.agents[identity] = {'public_key': ''}
                 self.state[identity] = State(identity, self.storage_bridge)
-                self.chain[identity] = BlockChain(self.storage_bridge.get_collection(identity, identity+'_ledger'))
-                reply = [agent['name'] for agent in self.agents]
+                self.chain[identity] = BlockChain(self.storage_bridge.get_collection(identity, 'ledger'))
+                reply = [agent for agent in self.agents]
         else:
             # a client asks for a list of identities
             if record_type == 'GET':
-                reply = [agent['name'] for agent in self.agents]
+                reply = [agent for agent in self.agents]
         return reply
 
 
@@ -161,7 +160,6 @@ def stream(identity_name, contract_name):
         if identity:
             contract = identity.get(contract_name)
             if contract:
-                yield 'data: \n\n'
                 while True:
                     print("working")
                     # wait for source data to be available, then push it

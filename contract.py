@@ -12,10 +12,10 @@ class ProtocolStep(Enum):
 
 
 class Contract(Condition):
-    def __init__(self, storage_bridge, agent, name, code):
+    def __init__(self, storage_bridge, storage, name, code):
         Condition.__init__(self)
         self.storage_bridge = storage_bridge
-        self.agent = agent
+        self.storage = storage
         self.name = name
         self.class_name = ''
         self.code = code
@@ -31,8 +31,6 @@ class Contract(Condition):
         self.caller = None
 
     def __repr__(self):
-        # state = ast.literal_eval(repr(self.obj))
-        # return str({'class': 'Contract', 'name': self.name, 'partners': self.partners, 'state': state})
         return self.name
 
     def handle_off_chain(self, method):
@@ -42,7 +40,7 @@ class Contract(Condition):
         return self.caller
 
     def get_storage(self, name):
-        return self.storage_bridge.get_collection(self.agent, self.name+'_'+name)
+        return self.storage_bridge.get_collection(self.name, name, self.storage)
 
     def run(self, caller):
         self.caller = caller
@@ -51,7 +49,8 @@ class Contract(Condition):
              {'__builtins__':
               {'__build_class__': __build_class__, '__name__': __name__,
                'str': str, 'int': int, 'print': print, 'master': self.master,
-               'Storage': self.get_storage, 'off_chain': self.handle_off_chain}}, empty_locals)
+               'Storage': self.get_storage, 'parameters': self.storage_bridge.get_document(self.name, self.storage),
+               'off_chain': self.handle_off_chain}}, empty_locals)
         # [f for f in dir(ClassName) if not f.startswith('_')]
         # args=method.__code__.co_varnames
         class_object = list(empty_locals.values())[0]

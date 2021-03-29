@@ -5,7 +5,7 @@ import { Observable, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 
 import { Contract, Method } from './contract';
-import { Statement } from './statement';
+import { Collection } from './statement';
 
 @Injectable({
   providedIn: 'root'
@@ -52,11 +52,11 @@ export class ContractService {
     return new EventSource(`${this.url}stream/${this.identity}/${this.contract}`);
   }
 
-  getStatements(method: Method): Observable<Statement[]> {
+  getStatements(method: Method): Observable<Collection> {
     const url = `${this.url}ibc/app/${this.identity}/${this.contract}/${method.name}`;
-    return this.http.post<Statement[]>(url, method, this.httpOptions).pipe(
-//      tap((list: Statement[]) => console.log(list)),
-      catchError(this.handleError<Statement[]>(`getContract name=${name}`))
+    return this.http.post<Collection>(url, method, this.httpOptions).pipe(
+//      tap((list: Collection) => console.log(list)),
+      catchError(this.handleError<Collection>(`getContract name=${name}`))
     );
   }
 

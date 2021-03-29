@@ -7,15 +7,16 @@ class State:
     def __init__(self, agent, storage_bridge):
         self.agent = agent
         self.storage_bridge = storage_bridge
-        self.contract_names = storage_bridge.get_collection(agent, agent+'_state')
+        self.storage = storage_bridge.get_collection(agent, 'state')
         self.contracts = {}
-        for record in self.contract_names:
-            self.contracts[record['name']] = Contract(self.storage_bridge, self.agent, record['name'], record['code'])
-            self.contracts[record['name']].run(record['caller'])
+        for key in self.storage:
+            record = self.storage[key]
+            self.contracts[key] = Contract(self.storage_bridge, self.storage, key, record['code'])
+            self.contracts[key].run(record['caller'])
 
     def add(self, caller, name, message):
-        self.contract_names.append({'caller': caller, 'name': name, 'code': message['code']})
-        contract = Contract(self.storage_bridge, self.agent, name, message['code'])
+        self.storage[name] = {'caller': caller, 'code': message['code']}
+        contract = Contract(self.storage_bridge, self.storage, name, message['code'])
         self.contracts[name] = contract
         return contract.run(caller)
 

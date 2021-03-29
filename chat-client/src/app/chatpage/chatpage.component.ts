@@ -10,7 +10,7 @@ import { Method } from '../contract';
 })
 export class ChatpageComponent implements OnInit {
 
-  id: number;
+  id: string;
   title: string;
   counter: number = 0;
 
@@ -19,7 +19,7 @@ export class ChatpageComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.id = 0;
+    this.id = '';
     this.title = 'Topics';
     this.contractService.listen().addEventListener('message', message => {
       this.counter = this.counter + 1;

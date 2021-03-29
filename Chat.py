@@ -2,34 +2,32 @@ class Chat:
 
     def __init__(self):
         self.statements = Storage('statements')
-        self.parameters = Storage('parameters')
-        if not self.parameters[{'record': 'single'}]:
-            self.parameters.append({'record': 'single', 'topics': [], 'counter': 0, 'version': 0})
+        if parameters.get('topics') is None:
+            parameters.set('topics', [])
 
     def _create_statement(self, parent, text, reply_type=None):
-        self.parameters[{'record': 'single'}] = {'$inc': {'counter': 1, 'version': 1}}
-        record = {'parent': parent, 'me': self.parameters[{'record': 'single'}]['counter'], 'kids': [],
+        parameters.increment('version', 1)
+        record = {'parent': parent, 'kids': [],
                   'owner': master(), 'text': text, 'reactions': {}, 'reply_type': reply_type}
-        self.statements.append(record)
-        return self.parameters[{'record': 'single'}]['counter']
+        return self.statements.append(record)
 
     def _update_change(self, sid):
-        self.statements[{'me': sid}] = {'$set': {'version': self.parameters[{'record': 'single'}]['version']}}
-        _parent_id = self.statements[{'me': sid}]['parent']
+        self.statements.update(sid, 'version', parameters.get('version'))
+        _parent_id = self.statements[sid]['parent']
         while _parent_id:
-            self.statements[{'me': _parent_id}] = {'$set': {'kids_version': sid}}
-            _parent_id = self.statements[{'me': _parent_id}]['parent']
+            self.statements.update(_parent_id, 'kids_version', sid)
+            _parent_id = self.statements[_parent_id]['parent']
 
     def create_topic(self, statement):
         _sid = self._create_statement(None, statement)
         self._update_change(_sid)
-        self.parameters[{'record': 'single'}] = {'$push': {'topics': _sid}}
+        parameters.append('topics', _sid)
 
     def reply(self, parent_sid, statement, reply_type):
-        _parent = self.statements[{'me': parent_sid}]
+        _parent = self.statements[parent_sid]
         if _parent:
             _sid = self._create_statement(parent_sid, statement, reply_type)
-            self.statements[{'me': parent_sid}] = {'$push': {'kids': _sid}}
+            self.statements.update_append(parent_sid, 'kids', _sid)
         self._update_change(_sid)
 
     def react(self, sid, action):
@@ -54,7 +52,6 @@ class Chat:
 #        if _chat:
 #            _chat.append((pid, statement))
 
-    def get_kids(self, counter):
-        if counter == 0:
-            return [self.statements[{'me': stid}] for stid in self.parameters[{'record': 'single'}]['topics']]
-        return [self.statements[{'me': stid}] for stid in self.statements[{'me': counter}]['kids']]
+    def get_kids(self, sid):
+        _kids = self.statements[sid]['kids'] if sid else parameters.get('topics')
+        return {kid: self.statements[kid] for kid in _kids}

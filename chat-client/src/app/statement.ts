@@ -13,3 +13,7 @@ export interface Statement {
   version: number;
   kids_version: number;
 }
+
+export interface Collection {
+  [sid: string]: Statement;
+}
