@@ -59,6 +59,13 @@ class Storage:
         doc_ref.set(record)
         return doc_ref.id
 
+    def listen(self, name, notify):
+        def on_snapshot(document_snapshot, changes, read_time):
+            print('db change detected')
+            notify()
+        self.collection.document(name).on_snapshot(on_snapshot)
+
+
 
 class Parameters:
     def __init__(self, document):

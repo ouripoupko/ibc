@@ -16,6 +16,11 @@ class Contract(Condition):
         Condition.__init__(self)
         self.storage_bridge = storage_bridge
         self.storage = storage
+
+        def notify():
+            with self:
+                self.notify_all()
+        self.storage.listen(name, notify)
         self.name = name
         self.class_name = ''
         self.code = code
@@ -78,6 +83,7 @@ class Contract(Condition):
         if not reply:
             reply = self.get_info()
         with self:
+            print('contract call detected')
             self.notify_all()
         return reply
 
