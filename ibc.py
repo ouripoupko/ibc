@@ -1,4 +1,5 @@
 import sys
+import os
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
 from flask_cors import CORS
 from state import State
@@ -116,6 +117,9 @@ def favicon():
 
 @app.route('/', methods=['GET'])
 def view():  # pragma: no cover
+    print(os.getcwd())
+    print(os.listdir('.'))
+    print(os.listdir('./ibc'))
     return render_template('index.html')
 #    f = open('ui.html', 'r')
 #    f = open('ibc-client/index.html', 'r')
