@@ -4,7 +4,7 @@ from flask import Flask, request, send_from_directory, render_template, jsonify,
 from flask_cors import CORS
 from state import State
 from blockchain import BlockChain
-from firebase_storage import StorageBridge, Storage
+from tinydb_storage import StorageBridge
 
 # Create the application instance
 app = Flask(__name__, static_folder='ibc')
@@ -16,7 +16,7 @@ class IBC:
         self.my_address = my_address
         self.storage_bridge = StorageBridge()
         self.storage_bridge.connect()
-        self.agents = Storage(self.storage_bridge.ibc)
+        self.agents = self.storage_bridge.get_collection(None, 'agents')
         self.state = {}
         self.chain = {}
         for agent in self.agents:

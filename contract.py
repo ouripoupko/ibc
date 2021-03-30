@@ -12,15 +12,10 @@ class ProtocolStep(Enum):
 
 
 class Contract(Condition):
-    def __init__(self, storage_bridge, storage, name, code):
+    def __init__(self, agent, storage_bridge, name, code):
         Condition.__init__(self)
+        self.agent = agent
         self.storage_bridge = storage_bridge
-        self.storage = storage
-
-        def notify():
-            with self:
-                self.notify_all()
-        self.storage.listen(name, notify)
         self.name = name
         self.class_name = ''
         self.code = code
@@ -45,7 +40,7 @@ class Contract(Condition):
         return self.caller
 
     def get_storage(self, name):
-        return self.storage_bridge.get_collection(self.name, name, self.storage)
+        return self.storage_bridge.get_collection(self.agent, self.name, name)
 
     def run(self, caller):
         self.caller = caller
@@ -54,10 +49,8 @@ class Contract(Condition):
              {'__builtins__':
               {'__build_class__': __build_class__, '__name__': __name__,
                'str': str, 'int': int, 'print': print, 'master': self.master,
-               'Storage': self.get_storage, 'parameters': self.storage_bridge.get_document(self.name, self.storage),
+               'Storage': self.get_storage, 'parameters': self.storage_bridge.get_document(self.agent, self.name),
                'off_chain': self.handle_off_chain}}, empty_locals)
-        # [f for f in dir(ClassName) if not f.startswith('_')]
-        # args=method.__code__.co_varnames
         class_object = list(empty_locals.values())[0]
         self.class_name = class_object.__name__
         self.obj = class_object()

@@ -11,12 +11,12 @@ class State:
         self.contracts = {}
         for key in self.storage:
             record = self.storage[key]
-            self.contracts[key] = Contract(self.storage_bridge, self.storage, key, record['code'])
+            self.contracts[key] = Contract(self.agent, self.storage_bridge, key, record['code'])
             self.contracts[key].run(record['caller'])
 
     def add(self, caller, name, message):
         self.storage[name] = {'caller': caller, 'code': message['code']}
-        contract = Contract(self.storage_bridge, self.storage, name, message['code'])
+        contract = Contract(self.agent, self.storage_bridge, name, message['code'])
         self.contracts[name] = contract
         return contract.run(caller)
 
