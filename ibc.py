@@ -1,10 +1,9 @@
 import sys
-import os
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
 from flask_cors import CORS
 from state import State
 from blockchain import BlockChain
-from tinydb_storage import StorageBridge
+from firebase_storage import StorageBridge, Storage
 
 # Create the application instance
 app = Flask(__name__, static_folder='ibc')
@@ -16,7 +15,7 @@ class IBC:
         self.my_address = my_address
         self.storage_bridge = StorageBridge()
         self.storage_bridge.connect()
-        self.agents = self.storage_bridge.get_collection(None, 'agents')
+        self.agents = Storage(self.storage_bridge.ibc)
         self.state = {}
         self.chain = {}
         for agent in self.agents:
@@ -117,10 +116,7 @@ def favicon():
 
 @app.route('/', methods=['GET'])
 def view():  # pragma: no cover
-    print(os.getcwd())
-    print(os.listdir('.'))
-    print(os.listdir('./ibc'))
-    return render_template('index.html')
+   return render_template('index.html')
 #    f = open('ui.html', 'r')
 #    f = open('ibc-client/index.html', 'r')
 #    content = f.read()
