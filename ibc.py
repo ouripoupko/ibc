@@ -1,3 +1,4 @@
+import logging
 import sys
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
 from flask_cors import CORS
@@ -8,6 +9,7 @@ from firebase_storage import StorageBridge, Storage
 # Create the application instance
 app = Flask(__name__, static_folder='ibc')
 CORS(app)
+logging.getLogger('flask_cors').level = logging.DEBUG
 
 
 class IBC:
@@ -188,5 +190,5 @@ if __name__ == '__main__':
     address = sys.argv[1]
     port = sys.argv[2]
     ibc = IBC(address)
-    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
+#    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     app.run(port=port, debug=True, use_reloader=False)  #, threaded=False)
