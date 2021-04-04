@@ -165,6 +165,7 @@ def stream(identity_name, contract_name):
                     # wait for source data to be available, then push it
                     with contract:
                         timeout = contract.wait(15)
+                    print('going to yield')
                     yield 'data: {}\n\n'.format(timeout)
     return Response(event_stream(), mimetype="text/event-stream")
 
