@@ -76,8 +76,7 @@ class Contract(Condition):
         if not reply:
             reply = self.get_info()
         with self:
-            print('contract call detected')
-            print(self._waiters)
+            print('contract '+str(id(self))+' call detected. going to wake '+str(self._waiters))
             self.notify_all()
         return reply
 
