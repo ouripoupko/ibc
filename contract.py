@@ -77,6 +77,7 @@ class Contract(Condition):
             reply = self.get_info()
         with self:
             print('contract call detected')
+            print(self._waiters)
             self.notify_all()
         return reply
 
