@@ -106,7 +106,6 @@ class Contract(Condition):
         return record
 
     def consent(self, record, initiate):
-        print(record)
         if initiate:
             if not self.partners:
                 return True

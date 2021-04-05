@@ -150,7 +150,6 @@ def ibc_handler(identity, contract, method):
               'message': msg}
     if not internal:
         record['caller'] = identity
-    print(record)
     response = jsonify(ibc.handle_record(record, identity, internal))
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
@@ -169,9 +168,7 @@ def stream(identity_name, contract_name):
                 while True:
                     # wait for source data to be available, then push it
                     with contract:
-                        print('going to wait on '+str(id(contract)))
                         contract.wait()
-                    print('going to yield')
                     yield 'data: {}\n\n'.format('True')
 
     return Response(event_stream(), mimetype="text/event-stream")
