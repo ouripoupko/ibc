@@ -20,6 +20,15 @@ class StorageBridge:
         collection = self.ibc if collection is None else collection.collection
         return Parameters(collection.document(doc))
 
+    @staticmethod
+    def listen(storage, name, condition):
+        def on_snapshot(doc_snapshot, changes, read_time):
+            print('Received update from db')
+            with condition:
+                condition.notify_all()
+
+        storage.collection.document(name).on_snapshot(on_snapshot)
+
 
 class Storage:
     """Storage behaves like a list of dicts with persistence over Firebase"""

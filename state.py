@@ -46,3 +46,6 @@ class State:
 
     def get_contracts(self):
         return [contract.name for contract in self.contracts.values()]
+
+    def listen(self, name):
+        self.storage_bridge.listen(self.storage, name, self.contracts[name])

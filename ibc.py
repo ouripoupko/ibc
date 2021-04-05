@@ -24,12 +24,6 @@ class IBC:
             self.state[agent] = State(agent, self.storage_bridge)
             ledger = self.storage_bridge.get_collection(agent, 'ledger')
             self.chain[agent] = BlockChain(ledger)
-        self.echo('IBC initialized ')
-
-    def echo(self, msg):
-        st = self.state.get('אורי')
-        ct = st.get('mang') if st else None
-        print('*** echo *** '+msg+(str(id(ct)) if ct else 'None'))
 
     def commit(self, record, identity, internal):
         record_type = record['type']
@@ -118,14 +112,12 @@ ibc = IBC(os.getenv('MY_ADDRESS'))
 
 @app.route('/favicon.ico')
 def favicon():
-    ibc.echo('favicon ')
     return send_from_directory(app.root_path,
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
 @app.route('/', methods=['GET'])
 def view():  # pragma: no cover
-    ibc.echo('root ')
     return render_template('index.html')
 #    f = open('ui.html', 'r')
 #    f = open('ibc-client/index.html', 'r')
@@ -143,7 +135,6 @@ def view():  # pragma: no cover
            defaults={'method': ''})
 @app.route('/ibc/app/<identity>/<contract>/<method>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def ibc_handler(identity, contract, method):
-    ibc.echo('handler ')
     if request.method == 'OPTIONS':
         response = jsonify()
         response.headers.add('Access-Control-Allow-Origin', '*')
@@ -159,6 +150,7 @@ def ibc_handler(identity, contract, method):
               'message': msg}
     if not internal:
         record['caller'] = identity
+    print(record)
     response = jsonify(ibc.handle_record(record, identity, internal))
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
@@ -166,21 +158,22 @@ def ibc_handler(identity, contract, method):
 
 @app.route('/stream/<identity_name>/<contract_name>')
 def stream(identity_name, contract_name):
-    ibc.echo('stream ')
 
     def event_stream():
         identity = ibc.state.get(identity_name)
         if identity:
             contract = identity.get(contract_name)
             if contract:
+                ibc.state[identity_name].listen(contract_name)
                 print("working")
                 while True:
                     # wait for source data to be available, then push it
                     with contract:
                         print('going to wait on '+str(id(contract)))
-                        timeout = contract.wait(15)
+                        contract.wait()
                     print('going to yield')
-                    yield 'data: {}\n\n'.format(timeout)
+                    yield 'data: {}\n\n'.format('True')
+
     return Response(event_stream(), mimetype="text/event-stream")
 
 
@@ -201,5 +194,5 @@ class LoggingMiddleware(object):
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
     port = sys.argv[1]
-    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
+#    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     app.run(port=port, debug=True, use_reloader=False)  #, threaded=False)

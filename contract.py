@@ -75,9 +75,6 @@ class Contract(Condition):
         reply = m(*msg['values'])
         if not reply:
             reply = self.get_info()
-        with self:
-            print('contract '+str(id(self))+' call detected. going to wake '+str(self._waiters))
-            self.notify_all()
         return reply
 
     def call_off_chain(self, caller, method, msg):
