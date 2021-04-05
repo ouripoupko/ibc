@@ -61,7 +61,7 @@ class Storage:
         self.collection.document(key).update({name: firestore.ArrayUnion([value])})
 
     def get(self, field, condition, value):
-        return self.collection.where(field, condition, value).get()
+        return self.collection.where(field, condition, value).get().to_dict()
 
     def append(self, record):
         doc_ref = self.collection.document()
