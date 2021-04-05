@@ -1,4 +1,6 @@
 import sys
+import os
+
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
 from flask_cors import CORS
 from state import State
@@ -22,6 +24,12 @@ class IBC:
             self.state[agent] = State(agent, self.storage_bridge)
             ledger = self.storage_bridge.get_collection(agent, 'ledger')
             self.chain[agent] = BlockChain(ledger)
+        self.echo('IBC initialized ')
+
+    def echo(self, msg):
+        st = self.state.get('אורי')
+        ct = st.get('mang') if st else None
+        print('*** echo *** '+msg+(str(id(ct)) if ct else 'None'))
 
     def commit(self, record, identity, internal):
         record_type = record['type']
@@ -105,18 +113,20 @@ class IBC:
         return reply
 
 
-ibc = IBC('https://dashboard.heroku.com/')
+ibc = IBC(os.getenv('MY_ADDRESS'))
 
 
 @app.route('/favicon.ico')
 def favicon():
+    ibc.echo('favicon ')
     return send_from_directory(app.root_path,
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
 @app.route('/', methods=['GET'])
 def view():  # pragma: no cover
-   return render_template('index.html')
+    ibc.echo('root ')
+    return render_template('index.html')
 #    f = open('ui.html', 'r')
 #    f = open('ibc-client/index.html', 'r')
 #    content = f.read()
@@ -133,6 +143,7 @@ def view():  # pragma: no cover
            defaults={'method': ''})
 @app.route('/ibc/app/<identity>/<contract>/<method>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def ibc_handler(identity, contract, method):
+    ibc.echo('handler ')
     if request.method == 'OPTIONS':
         response = jsonify()
         response.headers.add('Access-Control-Allow-Origin', '*')
@@ -155,6 +166,8 @@ def ibc_handler(identity, contract, method):
 
 @app.route('/stream/<identity_name>/<contract_name>')
 def stream(identity_name, contract_name):
+    ibc.echo('stream ')
+
     def event_stream():
         identity = ibc.state.get(identity_name)
         if identity:
@@ -187,8 +200,6 @@ class LoggingMiddleware(object):
 
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
-    address = sys.argv[1]
-    port = sys.argv[2]
-    ibc = IBC(address)
+    port = sys.argv[1]
     app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     app.run(port=port, debug=True, use_reloader=False)  #, threaded=False)
