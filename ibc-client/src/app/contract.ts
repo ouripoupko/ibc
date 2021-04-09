@@ -5,6 +5,8 @@ export interface Contract {
   members: string[];
   methods: Method[];
   values: any[];
+  pid: string;
+  address: string;
 }
 
 export interface Method {

@@ -2,6 +2,7 @@ from builtins import __build_class__
 from enum import Enum
 from threading import Condition
 import hashlib
+from partner import Partner
 
 
 class ProtocolStep(Enum):
@@ -12,7 +13,7 @@ class ProtocolStep(Enum):
 
 
 class Contract(Condition):
-    def __init__(self, storage_bridge, storage, name, code):
+    def __init__(self, storage_bridge, storage, name, code, me):
         Condition.__init__(self)
         self.storage_bridge = storage_bridge
         self.storage = storage
@@ -22,6 +23,9 @@ class Contract(Condition):
         self.members = []
         self.methods = []
         self.partners = []
+        self.partners_db = self.storage_bridge.get_document('partners', self.name, self.storage)
+        for key, value in self.partners_db.get_all().items():
+            self.partners.append(Partner(value, key, me))
         self.obj = None
         self.prepared = {}
         self.committed = {}
@@ -48,8 +52,8 @@ class Contract(Condition):
         exec(self.code,
              {'__builtins__':
               {'__build_class__': __build_class__, '__name__': __name__,
-               'str': str, 'int': int, 'print': print, 'master': self.master,
-               'Storage': self.get_storage, 'parameters': self.storage_bridge.get_document(self.name, self.storage),
+               'str': str, 'int': int, 'master': self.master, 'Storage': self.get_storage,
+               'parameters': self.storage_bridge.get_document('parameters', self.name, self.storage),
                'off_chain': self.handle_off_chain}}, empty_locals)
         class_object = list(empty_locals.values())[0]
         self.class_name = class_object.__name__
@@ -85,8 +89,10 @@ class Contract(Condition):
             reply = self.get_info()
         return reply
 
-    def connect(self, partner):
-        self.partners.append(partner)
+    def connect(self, address, pid, me):
+        if pid != me:
+            self.partners.append(Partner(address, pid, me))
+            self.partners_db.set({pid: address})
 
     def get_ready(self, record):
         hash_code = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
@@ -108,12 +114,13 @@ class Contract(Condition):
     def consent(self, record, initiate):
         if initiate:
             if not self.partners:
-                return True
+                return True, None
             hash_code = self.get_ready(record)
             for partner in self.partners:
                 partner.consent(self.name, ProtocolStep.LEADER.name, record, 0.5)
             for partner in self.partners:
                 partner.consent(self.name, ProtocolStep.PREPARE.name, hash_code)
+            return False, hash_code
         else:
             step = ProtocolStep[record['message']['msg']['step']]
             if step == ProtocolStep.LEADER:
@@ -131,9 +138,9 @@ class Contract(Condition):
                     if not self.delayed.get(hash_code):
                         self.delayed[hash_code] = []
                     self.delayed[hash_code].append(record)
-                    return False
+                    return False, None
                 elif self.keep.get(hash_code) == 'done':
-                    return False
+                    return False, None
                 if step == ProtocolStep.PREPARE:
                     self.prepared[hash_code].add(from_pid)
                     if len(self.prepared[hash_code]) * 3 >= len(self.partners) * 2:
@@ -141,12 +148,12 @@ class Contract(Condition):
                             partner.consent(self.name, ProtocolStep.COMMIT.name, hash_code)
                         self.commit_state[hash_code] = True
                         if len(self.committed[hash_code]) * 3 >= len(self.partners) * 2:
-                            return True
+                            return True, hash_code
                 elif step == ProtocolStep.COMMIT:
                     self.committed[hash_code].add(from_pid)
                     if len(self.committed[hash_code]) * 3 >= len(self.partners) * 2 and self.commit_state[hash_code]:
-                        return True
-        return False
+                        return True, hash_code
+        return False, None
 
     def get_consent_result(self, record):
         return self.done(record['message']['msg']['data'])

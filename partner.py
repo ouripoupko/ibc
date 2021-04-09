@@ -24,21 +24,19 @@ class Partner:
 #                                 'json': {'from': self.me, 'to': self.pid, 'msg': params}}).start()
 #        return {'reply': 'message sent to partner'}
 
-    def get_contract(self, contract):
-        try:
-            reply = requests.get(self.address + 'ibc/app/' + self.pid + '/' + contract,
-                                 params={'type': 'internal'}).json()
-        except Exception as e:
-            print(e)
-        return reply
+#    def get_contract(self, contract):
+#        try:
+#            reply = requests.get(self.address + 'ibc/app/' + self.pid + '/' + contract,
+#                                 params={'type': 'internal'}).json()
+#        except Exception as e:
+#            print(e)
+#        return reply
 
     def connect(self, contract, my_address):
-        threading.Thread(target=requests.post,
-                         kwargs={'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
-                                 'params': {'type': 'internal'},
-                                 'json': {'from': self.me, 'to': self.pid,
-                                          'msg': {'address': my_address, 'pid': self.me}}}).start()
-        return {'reply': 'message sent to partner'}
+        return requests.post(self.address + 'ibc/app/' + self.pid + '/' + contract,
+                             params={'type': 'internal'},
+                             json={'from': self.me, 'to': self.pid,
+                                   'msg': {'address': my_address, 'pid': self.me}}).json()
 
     def consent(self, contract, step, data, delay=0):
         threading.Thread(target=delayed_thread,  # requests.post,

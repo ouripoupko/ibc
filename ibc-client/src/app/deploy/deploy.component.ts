@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
+import { Location } from '@angular/common'
 
 import { ContractService } from '../contract.service';
 import { Contract } from '../contract';
@@ -17,6 +18,7 @@ export class DeployComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
+    private location: Location,
     private contractService: ContractService
   ) {
     this.compInfo = "no contract selected yet"
@@ -42,7 +44,13 @@ export class DeployComponent implements OnInit {
     name = name.trim();
     if (!name) { return; }
     if (!this.fileFound) { return; }
-    this.contractService.addContract(this.agent, name, { code: this.compInfo } as Contract)
+
+    let contract: Contract = {} as Contract;
+    contract.code = this.compInfo;
+    contract.address = window.location.href.replace(window.location.pathname,'/');
+    contract.pid = this.agent;
+
+    this.contractService.addContract(this.agent, name, contract)
       .subscribe();
     this.compInfo = "no contract selected yet"
 		this.fileFound = false;

@@ -1,5 +1,4 @@
 from contract import Contract
-from partner import Partner
 
 
 class State:
@@ -11,25 +10,19 @@ class State:
         self.contracts = {}
         for key in self.storage:
             record = self.storage[key]
-            self.contracts[key] = Contract(self.storage_bridge, self.storage, key, record['code'])
-            self.contracts[key].run(record['caller'])
+            self.contracts[key] = Contract(self.storage_bridge, self.storage, key, record['code'], self.agent)
+            self.contracts[key].run(record['pid'])
 
-    def add(self, caller, name, message):
-        self.storage[name] = {'caller': caller, 'code': message['code']}
-        contract = Contract(self.storage_bridge, self.storage, name, message['code'])
+    def add(self, name, message):
+        self.storage[name] = {'pid': message['pid'], 'code': message['code']}
+        contract = Contract(self.storage_bridge, self.storage, name, message['code'], self.agent)
+        contract.connect(message['address'], message['pid'], self.agent)
         self.contracts[name] = contract
-        return contract.run(caller)
+        return contract.run(message['pid'])
 
-    def join(self, ibc, me, name, msg, my_address):
-        partner = Partner(msg['address'], msg['pid'], me)
-        if my_address:  # my_address is supplied when initiator calls this method
-            records = partner.get_contract(name)
-            for record in records:
-                ibc.handle_record(record, me, False, direct=True)
-            partner.connect(name, my_address)
+    def welcome(self, name, msg):
         contract = self.contracts.get(name)
-        contract.connect(partner)
-        return contract.get_info()
+        contract.connect(msg['address'], msg['pid'], self.agent)
 
     def get(self, name):
         return self.contracts.get(name)

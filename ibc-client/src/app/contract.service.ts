@@ -71,7 +71,7 @@ export class ContractService {
   }
 
   /** POST **/
-  connect(agent: string, address: string, pid: string, name: string): Observable<Contract> {
+  connect(agent: string, address: string, pid: string, name: string): Observable<any> {
     return this.http.post(`app/${agent}/${name}`, { address: address, pid: pid }, this.httpOptions).pipe(
       tap(_ => this.log(`connected to ${address} with contract ${name}`)),
       catchError(this.handleError<any>('connect'))
