@@ -18,9 +18,25 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 
+# class Singleton(object):
 class IBC:
+    _instance = None
+
     def __init__(self, my_address):
-        self.my_address = my_address
+        print('should not instantiate IBC')
+
+    @classmethod
+    def instance(cls):
+        if cls._instance is None:
+            cls._instance = cls.__new__(cls)
+            print(type(cls._instance))
+            cls._instance.initialize()
+        print(id(cls._instance))
+        return cls._instance
+
+    def initialize(self):
+        print('initializing new ibc instance ')
+        self.my_address = os.getenv('MY_ADDRESS')
         self.storage_bridge = StorageBridge()
         self.storage_bridge.connect()
         self.agents = Storage(self.storage_bridge.db, self.storage_bridge.ibc)
@@ -66,6 +82,7 @@ class IBC:
         room.pop(code)
 
     def handle_record(self, record, identity, internal, direct=False):
+        print(str(direct)+' '+str(internal)+' '+str(identity)+' '+str(record))
         record_type = record['type']
         contract_name = record['contract']
         method = record['method']
@@ -160,9 +177,6 @@ class IBC:
         return reply
 
 
-ibc = IBC(os.getenv('MY_ADDRESS'))
-
-
 @app.route('/favicon.ico')
 def favicon():
     return send_from_directory(app.root_path,
@@ -197,20 +211,26 @@ def ibc_handler(identity, contract, method):
               'message': msg}
     if not internal:
         record['caller'] = identity
-    response = jsonify(ibc.handle_record(record, identity, internal))
+    response = jsonify(IBC.instance().handle_record(record, identity, internal))
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
+
+
+@app.route('/this/will/reset/ibc/use/when/hacking/firebase')
+def reset_ibc():
+    IBC.instance().initialize()
+    return 'done'
 
 
 @app.route('/stream/<identity_name>/<contract_name>')
 def stream(identity_name, contract_name):
 
     def event_stream():
-        identity = ibc.state.get(identity_name)
+        identity = IBC.instance().state.get(identity_name)
         if identity:
             contract = identity.get(contract_name)
             if contract:
-                ibc.state[identity_name].listen(contract_name)
+                IBC.instance().state[identity_name].listen(contract_name)
                 print("working")
                 while True:
                     # wait for source data to be available, then push it
