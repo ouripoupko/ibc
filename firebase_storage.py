@@ -22,7 +22,7 @@ class StorageBridge:
     @staticmethod
     @firestore.transactional
     def execute_transaction(transaction, method, *args):
-        method(transaction, *args)
+        return method(transaction, *args)
 
     def get_collection(self, doc=None, name=None, collection=None, transaction=None):
         collection = self.ibc if collection is None else collection.collection
@@ -40,7 +40,11 @@ class StorageBridge:
             with condition:
                 condition.notify_all()
 
-        storage.collection.document(name).on_snapshot(on_snapshot)
+        return storage.collection.document(name).on_snapshot(on_snapshot)
+
+    @staticmethod
+    def stop_listen(listener):
+        listener.unsubscribe()
 
 
 class Storage:

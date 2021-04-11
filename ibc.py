@@ -1,7 +1,7 @@
 import sys
 import os
 import time
-from threading import Lock
+from threading import Lock, Condition
 import logging
 
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
@@ -21,24 +21,37 @@ start = None
 
 
 class IBC:
-    def __init__(self):
+    def __init__(self, identity):
         self.my_address = os.getenv('MY_ADDRESS')
         self.storage_bridge = StorageBridge()
         self.storage_bridge.connect()
         self.agents = self.storage_bridge.get_collection()
         self.waiting_room = {}
-        self.chain = None
+        self.identity = identity
+        self.state = State(self.identity, self.storage_bridge) if self.identity in self.agents else None
+        self.ledger = BlockChain(self.storage_bridge, self.identity) if self.state else None
 
     def commit(self, command, record, *args, **kwargs):
-        self.chain.log(record)
-        return command(*args, **kwargs)
+        index = self.ledger.log(record)
+        last = self.agents[self.identity].get('last_executed', 0)
+        if last < index-1:
+            condition = Condition()
+            listener = self.storage_bridge.listen(self.agents, self.identity, condition)
+            while last < index-1:
+                with condition:
+                    condition.wait(1)
+                last = self.agents[self.identity].get('last_executed', 0)
+            self.storage_bridge.stop_listen(listener)
+        reply = command(*args, **kwargs)
+        self.agents.update(self.identity, 'last_executed', index)
+        return reply
 
-    def enter_waiting_room(self, code, agent):
+    def enter_waiting_room(self, code):
         print('starting consensus protocol')
-        room = self.waiting_room.get(agent)
+        room = self.waiting_room.get(self.identity)
         if room is None:
-            self.waiting_room[agent] = {}
-            room = self.waiting_room.get(agent)
+            self.waiting_room[self.identity] = {}
+            room = self.waiting_room.get(self.identity)
         if room.get(code) is not None:
             print('oops. I did not expect this')
         room[code] = Lock()
@@ -47,36 +60,31 @@ class IBC:
         room[code].release()
         room.pop(code)
 
-    def get_state(self, identity):
-        return State(identity, self.storage_bridge) if identity in self.agents else None
-
-    def handle_record(self, record, identity, internal, direct=False):
+    def handle_record(self, record, internal, direct=False):
         global start
         print('handle_record ' + str((time.time()-start)*1000))
-        print(str(direct)+' '+str(internal)+' '+str(identity)+' '+str(record))
+        print(str(direct)+' '+str(internal)+' '+str(self.identity)+' '+str(record))
         record_type = record['type']
         contract_name = record['contract']
         method = record['method']
         message = record['message']
         reply = {}
-        state = self.get_state(identity)
-        if state:
-            self.chain = BlockChain(self.storage_bridge, identity)
+        if self.state:
             if contract_name:
                 if method:
                     if record_type == 'PUT':
                         # a client is calling a method
-                        contract = state.get(contract_name)
+                        contract = self.state.get(contract_name)
                         if not contract:
                             return {'reply': 'contract not found'}
                         if not direct:
                             done, hash_code = contract.consent(record, True)
                             if not done:
-                                self.enter_waiting_room(hash_code, identity)
+                                self.enter_waiting_room(hash_code)
                         reply = self.commit(contract.call, record, record['caller'], method, message)
                     elif record_type == 'POST':
                         # a client calls an off chain method
-                        contract = state.get(contract_name)
+                        contract = self.state.get(contract_name)
                         if not contract:
                             return {'reply': 'contract not found'}
                         reply = contract.call_off_chain(record['caller'], method, message)
@@ -87,9 +95,9 @@ class IBC:
                             reply = {'reply': 'Why do you want me ledger history?'}
                         else:
                             # a client asks for a contract state
-                            reply = state.get_state(contract_name)
+                            reply = self.state.get_state(contract_name)
                     elif record_type == 'PUT':
-                        contract = state.get(contract_name)
+                        contract = self.state.get(contract_name)
                         if not contract:
                             return {'reply': 'contract not found'}
                         if internal:
@@ -97,7 +105,7 @@ class IBC:
                             done, hash_code = contract.consent(record, False)
                             if done:
                                 original_record = contract.get_consent_result(record)
-                                room = self.waiting_room.get(identity)
+                                room = self.waiting_room.get(self.identity)
                                 lock = room.get(hash_code) if room else None
                                 if lock:
                                     lock.release()
@@ -107,33 +115,33 @@ class IBC:
                     elif record_type == 'POST':
                         if message.get('code'):
                             # a client deploys a contract
-                            reply = self.commit(state.add, record, contract_name, message)
+                            reply = self.commit(self.state.add, record, contract_name, message)
                         elif internal or direct:
                             # a partner requests to join
-                            contract = state.get(contract_name)
+                            contract = self.state.get(contract_name)
                             if not contract:
                                 return {'reply': 'contract not found'}
                             if not direct:
                                 done, hash_code = contract.consent(record, True)
                                 if not done:
-                                    self.enter_waiting_room(hash_code, identity)
-                            self.commit(state.welcome, record, contract_name, message['msg'])
+                                    self.enter_waiting_room(hash_code, self.identity)
+                            self.commit(self.state.welcome, record, contract_name, message['msg'])
                             if not direct:
-                                reply = self.chain.get(contract_name)
+                                reply = self.ledger.get(contract_name)
                         else:  # this is the initiator of the join request
                             # a client requests a join
-                            partner = Partner(message['address'], message['pid'], identity)
+                            partner = Partner(message['address'], message['pid'], self.identity)
                             records = partner.connect(contract_name, self.my_address)
                             for record in records:
-                                self.handle_record(record, identity, False, direct=True)
+                                self.handle_record(record, False, direct=True)
                             reply = {'reply': 'joined a contract'}
             else:
                 # a client asks for a list of contracts
-                reply = [{'name': name} for name in state.get_contracts()]
-        elif identity:
+                reply = [{'name': name} for name in self.state.get_contracts()]
+        elif self.identity:
             if record_type == "POST":
                 # a client adds an identity
-                self.agents[identity] = {'public_key': ''}
+                self.agents[self.identity] = {'public_key': ''}
                 reply = [agent for agent in self.agents]
         else:
             # a client asks for a list of identities
@@ -178,17 +186,17 @@ def ibc_handler(identity, contract, method):
               'message': msg}
     if not internal:
         record['caller'] = identity
-    response = jsonify(IBC().handle_record(record, identity, internal))
+    response = jsonify(IBC(identity).handle_record(record, internal))
     response.headers.add('Access-Control-Allow-Origin', '*')
     print('before return ' + str((time.time() - start) * 1000))
     return response
 
 
-@app.route('/stream/<identity_name>/<contract_name>')
-def stream(identity_name, contract_name):
+@app.route('/stream/<identity>/<contract_name>')
+def stream(identity, contract_name):
 
     def event_stream():
-        state = IBC().get_state(identity_name)
+        state = IBC(identity).state
         if state:
             contract = state.get(contract_name)
             if contract:
