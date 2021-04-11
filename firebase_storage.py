@@ -16,9 +16,18 @@ class StorageBridge:
         self.db = firestore.Client(credentials=credentials)
         self.ibc = self.db.collection('ibc')
 
-    def get_collection(self, doc, name, collection=None):
+    def get_transaction(self):
+        return self.db.transaction()
+
+    @staticmethod
+    @firestore.transactional
+    def execute_transaction(transaction, method, *args):
+        method(transaction, *args)
+
+    def get_collection(self, doc=None, name=None, collection=None, transaction=None):
         collection = self.ibc if collection is None else collection.collection
-        return Storage(self.db, collection.document(doc).collection(name))
+        collection = collection if doc is None else collection.document(doc).collection(name)
+        return Storage(self.db, collection, transaction)
 
     def get_document(self, name, parent, collection=None):
         collection = self.ibc if collection is None else collection.collection
@@ -37,16 +46,19 @@ class StorageBridge:
 class Storage:
     """Storage behaves like a list of dicts with persistence over Firebase"""
 
-    def __init__(self, db, collection):
+    def __init__(self, db, collection, transaction):
         self.db = db
         self.collection = collection
         self.batch = None
+        self.transaction = transaction
 
     def __getitem__(self, key):
-        return self.collection.document(key).get().to_dict()
+        return self.collection.document(key).get(transaction=self.transaction).to_dict()
 
     def __setitem__(self, key, value):
-        if self.batch:
+        if self.transaction:
+            self.transaction.set(self.collection.document(key), value)
+        elif self.batch:
             self.batch.set(self.collection.document(key), value)
         else:
             self.collection.document(key).set(value)
@@ -55,7 +67,7 @@ class Storage:
         pass
 
     def __iter__(self):
-        return iter([doc.id for doc in self.collection.stream()])
+        return iter([doc.id for doc in self.collection.stream(transaction=self.transaction)])
 
     def __contains__(self, item):
         return item and self.collection.document(item).get().exists
