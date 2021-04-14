@@ -22,7 +22,12 @@ class StorageBridge:
     @staticmethod
     @firestore.transactional
     def execute_transaction(transaction, method, *args):
-        return method(transaction, *args)
+        try:
+            return method(*args)
+        except Exception as err:
+            print('*** I caught something ***')
+            print(format(err))
+            return False
 
     def get_collection(self, doc=None, name=None, collection=None, transaction=None):
         collection = self.ibc if collection is None else collection.collection
@@ -36,7 +41,6 @@ class StorageBridge:
     @staticmethod
     def listen(storage, name, condition):
         def on_snapshot(doc_snapshot, changes, read_time):
-            print('Received update from db')
             with condition:
                 condition.notify_all()
 
@@ -68,22 +72,24 @@ class Storage:
             self.collection.document(key).set(value)
 
     def __delitem__(self, key):
-        pass
+        self.collection.document(key).delete()
 
     def __iter__(self):
         return iter([doc.id for doc in self.collection.stream(transaction=self.transaction)])
 
     def __contains__(self, item):
-        return item and self.collection.document(item).get().exists
+        return item and self.collection.document(item).get(transaction=self.transaction).exists
 
     def __len__(self):
         pass
 
-    def update(self, key, name, value):
-        if self.batch:
-            self.batch.update(self.collection.document(key), {name: value})
+    def update(self, key, dictionary):
+        if self.transaction:
+            self.transaction.update(self.collection.document(key), dictionary)
+        elif self.batch:
+            self.batch.update(self.collection.document(key), dictionary)
         else:
-            self.collection.document(key).update({name: value})
+            self.collection.document(key).update(dictionary)
 
     def update_append(self, key, name, value):
         if self.batch:
@@ -122,7 +128,7 @@ class Record:
         record = self.get_all()
         return record.get(key) if record else None
 
-    def set(self, dictionary, storage=None):
+    def update(self, dictionary, storage=None):
         if storage is not None and storage.batch is not None:
             storage.batch.update(self.document, {self.name+'.'+key: value for key, value in dictionary.items()})
         else:

@@ -1,38 +1,30 @@
 from builtins import __build_class__
-from enum import Enum
 from threading import Condition
-import hashlib
 from partner import Partner
-
-
-class ProtocolStep(Enum):
-    LEADER = 1
-    PREPARE = 2
-    COMMIT = 3
-    DONE = 4
+from protocol import Protocol
 
 
 class Contract(Condition):
     def __init__(self, storage_bridge, storage, name, code, me):
         Condition.__init__(self)
+        # the database
         self.storage_bridge = storage_bridge
         self.storage = storage
+        # the contract
         self.name = name
         self.class_name = ''
         self.code = code
         self.members = []
         self.methods = []
+        self.obj = None
+        self.caller = None
+        # the partners
         self.partners = []
         self.partners_db = self.storage_bridge.get_document('partners', self.name, self.storage)
         for key, value in self.partners_db.get_all().items():
             self.partners.append(Partner(value, key, me))
-        self.obj = None
-        self.prepared = {}
-        self.committed = {}
-        self.commit_state = {}
-        self.keep = {}
-        self.delayed = {}
-        self.caller = None
+        # consensus protocols
+        self.protocol_storage = self.storage_bridge.get_collection(me, 'protocols')
 
     def __repr__(self):
         return self.name
@@ -92,68 +84,10 @@ class Contract(Condition):
     def connect(self, address, pid, me):
         if pid != me:
             self.partners.append(Partner(address, pid, me))
-            self.partners_db.set({pid: address})
-
-    def get_ready(self, record):
-        hash_code = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
-        self.prepared[hash_code] = set()
-        self.committed[hash_code] = set()
-        self.keep[hash_code] = record
-        self.commit_state[hash_code] = False
-        return hash_code
-
-    def done(self, hash_code):
-        self.prepared.pop(hash_code, None)
-        self.committed.pop(hash_code, None)
-        self.delayed.pop(hash_code, None)
-        self.commit_state.pop(hash_code, None)
-        record = self.keep[hash_code]
-        self.keep[hash_code] = 'done'
-        return record
+            self.partners_db.update({pid: address})
 
     def consent(self, record, initiate):
-        if initiate:
-            if not self.partners:
-                return True, None
-            hash_code = self.get_ready(record)
-            for partner in self.partners:
-                partner.consent(self.name, ProtocolStep.LEADER.name, record, 0.5)
-            for partner in self.partners:
-                partner.consent(self.name, ProtocolStep.PREPARE.name, hash_code)
-            return False, hash_code
-        else:
-            step = ProtocolStep[record['message']['msg']['step']]
-            if step == ProtocolStep.LEADER:
-                original_record = record['message']['msg']['data']
-                hash_code = self.get_ready(original_record)
-                delayed = self.delayed.get(hash_code, [])
-                for partner in self.partners:
-                    partner.consent(self.name, ProtocolStep.PREPARE.name, hash_code)
-                for delayed_record in delayed:
-                    self.consent(delayed_record, False)
-            else:
-                hash_code = record['message']['msg']['data']
-                from_pid = record['message']['from']
-                if not self.keep.get(hash_code):
-                    if not self.delayed.get(hash_code):
-                        self.delayed[hash_code] = []
-                    self.delayed[hash_code].append(record)
-                    return False, None
-                elif self.keep.get(hash_code) == 'done':
-                    return False, None
-                if step == ProtocolStep.PREPARE:
-                    self.prepared[hash_code].add(from_pid)
-                    if len(self.prepared[hash_code]) * 3 >= len(self.partners) * 2:
-                        for partner in self.partners:
-                            partner.consent(self.name, ProtocolStep.COMMIT.name, hash_code)
-                        self.commit_state[hash_code] = True
-                        if len(self.committed[hash_code]) * 3 >= len(self.partners) * 2:
-                            return True, hash_code
-                elif step == ProtocolStep.COMMIT:
-                    self.committed[hash_code].add(from_pid)
-                    if len(self.committed[hash_code]) * 3 >= len(self.partners) * 2 and self.commit_state[hash_code]:
-                        return True, hash_code
-        return False, None
-
-    def get_consent_result(self, record):
-        return self.done(record['message']['msg']['data'])
+        if initiate and not self.partners:
+            return True
+        protocol = Protocol(self.storage_bridge, self.protocol_storage, self.name, self.partners)
+        return protocol.handle_message(record, initiate)

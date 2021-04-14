@@ -1,7 +1,7 @@
 import sys
 import os
 import time
-from threading import Lock, Condition
+from threading import Condition
 import logging
 
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
@@ -26,7 +26,6 @@ class IBC:
         self.storage_bridge = StorageBridge()
         self.storage_bridge.connect()
         self.agents = self.storage_bridge.get_collection()
-        self.waiting_room = {}
         self.identity = identity
         self.state = State(self.identity, self.storage_bridge) if self.identity in self.agents else None
         self.ledger = BlockChain(self.storage_bridge, self.identity) if self.state else None
@@ -43,22 +42,8 @@ class IBC:
                 last = self.agents[self.identity].get('last_executed', 0)
             self.storage_bridge.stop_listen(listener)
         reply = command(*args, **kwargs)
-        self.agents.update(self.identity, 'last_executed', index)
+        self.agents.update(self.identity, {'last_executed': index})
         return reply
-
-    def enter_waiting_room(self, code):
-        print('starting consensus protocol')
-        room = self.waiting_room.get(self.identity)
-        if room is None:
-            self.waiting_room[self.identity] = {}
-            room = self.waiting_room.get(self.identity)
-        if room.get(code) is not None:
-            print('oops. I did not expect this')
-        room[code] = Lock()
-        room[code].acquire()
-        room[code].acquire()
-        room[code].release()
-        room.pop(code)
 
     def handle_record(self, record, internal, direct=False):
         global start
@@ -78,9 +63,8 @@ class IBC:
                         if not contract:
                             return {'reply': 'contract not found'}
                         if not direct:
-                            done, hash_code = contract.consent(record, True)
-                            if not done:
-                                self.enter_waiting_room(hash_code)
+                            if not contract.consent(record, True):
+                                return {'reply': 'consensus protocol failed'}
                         reply = self.commit(contract.call, record, record['caller'], method, message)
                     elif record_type == 'POST':
                         # a client calls an off chain method
@@ -102,15 +86,9 @@ class IBC:
                             return {'reply': 'contract not found'}
                         if internal:
                             # a partner is reporting consensus protocol
-                            done, hash_code = contract.consent(record, False)
-                            if done:
-                                original_record = contract.get_consent_result(record)
-                                room = self.waiting_room.get(self.identity)
-                                lock = room.get(hash_code) if room else None
-                                if lock:
-                                    lock.release()
-                                else:
-                                    self.commit(contract.call, original_record, record['caller'], method, message)
+                            if contract.consent(record, False):
+                                original_record = record['message']['msg']['data']
+                                self.handle_record(original_record, False, direct=True)
                             reply = {'reply': 'consensus protocol'}
                     elif record_type == 'POST':
                         if message.get('code'):
@@ -122,9 +100,8 @@ class IBC:
                             if not contract:
                                 return {'reply': 'contract not found'}
                             if not direct:
-                                done, hash_code = contract.consent(record, True)
-                                if not done:
-                                    self.enter_waiting_room(hash_code, self.identity)
+                                if not contract.consent(record, True):
+                                    return {'reply': 'consensus protocol failed'}
                             self.commit(self.state.welcome, record, contract_name, message['msg'])
                             if not direct:
                                 reply = self.ledger.get(contract_name)

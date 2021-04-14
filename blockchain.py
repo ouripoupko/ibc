@@ -4,7 +4,7 @@ class BlockChain:
         self.agent = agent
 
     @staticmethod
-    def transactional_log(transaction, ledger, record):
+    def transactional_log(ledger, record):
         stored = None
         for stored in ledger:
             pass
@@ -14,8 +14,9 @@ class BlockChain:
 
     def log(self, record):
         transaction = self.storage_bridge.get_transaction()
-        ledger = self.storage_bridge.get_collection(self.agent, 'ledger')
+        ledger = self.storage_bridge.get_collection(self.agent, 'ledger', transaction=transaction)
         return self.storage_bridge.execute_transaction(transaction, self.transactional_log, ledger, record)
 
     def get(self, name):
-        return self.chain.get('contract', '==', name)
+        ledger = self.storage_bridge.get_collection(self.agent, 'ledger')
+        return ledger.get('contract', '==', name)

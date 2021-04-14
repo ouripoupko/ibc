@@ -3,7 +3,7 @@ class Chat:
     def __init__(self):
         self.statements = Storage('statements')
         if parameters.get('topics') is None:
-            parameters.set({'topics': [], 'version': 1})
+            parameters.update({'topics': [], 'version': 1})
 
     def _create_statement(self, parent, text, reply_type=None):
         parameters.increment('version', 1, self.statements)
@@ -13,9 +13,9 @@ class Chat:
 
     def _update_change(self, sid, _parent_id):
         version = parameters.get('version')
-        self.statements.update(sid, 'version', version)
+        self.statements.update(sid, {'version': version})
         while _parent_id:
-            self.statements.update(_parent_id, 'kids_version', version)
+            self.statements.update(_parent_id, {'kids_version': version})
             _parent_id = self.statements[_parent_id]['parent']
 
     def create_topic(self, statement):
