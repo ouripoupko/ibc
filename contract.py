@@ -87,6 +87,8 @@ class Contract(Condition):
             self.partners_db.update({pid: address})
 
     def consent(self, record, initiate):
+        if initiate:
+            return [partner.pid for partner in self.partners]
         if initiate and not self.partners:
             return True
         protocol = Protocol(self.storage_bridge, self.protocol_storage, self.name, self.partners)

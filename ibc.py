@@ -1,7 +1,7 @@
 import sys
 import os
 import time
-from threading import Condition
+from threading import Condition, Thread
 import logging
 
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
@@ -45,6 +45,10 @@ class IBC:
         self.agents.update(self.identity, {'last_executed': index})
         return reply
 
+    @staticmethod
+    def handle_partner(pid, record):
+        IBC(pid).handle_record(record, False, True)
+
     def handle_record(self, record, internal, direct=False):
         global start
         print('handle_record ' + str((time.time()-start)*1000))
@@ -63,8 +67,10 @@ class IBC:
                         if not contract:
                             return {'reply': 'contract not found'}
                         if not direct:
-                            if not contract.consent(record, True):
-                                return {'reply': 'consensus protocol failed'}
+                            for pid in contract.consent(record, True):
+                                Thread(target=IBC.handle_partner, args=(pid, record)).start()
+#                            if not contract.consent(record, True):
+#                                return {'reply': 'consensus protocol failed'}
                         reply = self.commit(contract.call, record, record['caller'], method, message)
                     elif record_type == 'POST':
                         # a client calls an off chain method
@@ -100,8 +106,10 @@ class IBC:
                             if not contract:
                                 return {'reply': 'contract not found'}
                             if not direct:
-                                if not contract.consent(record, True):
-                                    return {'reply': 'consensus protocol failed'}
+                                for pid in contract.consent(record, True):
+                                    Thread(target=IBC.handle_partner, args=(pid, record)).start()
+#                                if not contract.consent(record, True):
+#                                    return {'reply': 'consensus protocol failed'}
                             self.commit(self.state.welcome, record, contract_name, message['msg'])
                             if not direct:
                                 reply = self.ledger.get(contract_name)
