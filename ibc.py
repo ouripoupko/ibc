@@ -16,14 +16,17 @@ app = Flask(__name__, static_folder='ibc')
 CORS(app)
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
+gunicorn_logger = logging.getLogger('gunicorn.error')
+app.logger.handlers = gunicorn_logger.handlers
+app.logger.setLevel(logging.DEBUG)
 
 start = None
 
 
 class IBC:
     def __init__(self, identity):
-        self.my_address = os.getenv('MY_ADDRESS')
-        self.storage_bridge = StorageBridge()
+        self.my_address = 'http://34.122.39.243:5001/'
+        self.storage_bridge = StorageBridge(app.logger)
         self.storage_bridge.connect()
         self.agents = self.storage_bridge.get_collection()
         self.identity = identity
@@ -213,5 +216,6 @@ class LoggingMiddleware(object):
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
     port = sys.argv[1]
-#    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
-    app.run(port=port, debug=True, use_reloader=False)  #, threaded=False)
+    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
+    print(port)
+    app.run(host='0.0.0.0', port=port, use_reloader=False)  #, threaded=False)

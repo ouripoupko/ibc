@@ -7,13 +7,14 @@ import time
 
 
 class StorageBridge:
-    def __init__(self):
+    def __init__(self, logger):
         self.db = None
         self.ibc = None
+        self.logger = logger
 
     def connect(self):
-        credentials = service_account.Credentials.from_service_account_info(json.loads(os.getenv("CREDENTIALS")))
-        self.db = firestore.Client(credentials=credentials)
+        self.db = firestore.Client()
+        self.logger.info('I am here, but what should I print? '+os.getenv('GOOGLE_APPLICATION_CREDENTIALS'))
         self.ibc = self.db.collection('ibc')
 
     def get_transaction(self):
