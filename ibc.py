@@ -25,7 +25,7 @@ start = None
 
 class IBC:
     def __init__(self, identity):
-        self.my_address = 'http://34.122.39.243:5001/'
+        self.my_address = os.getenv('MY_ADDRESS')
         self.storage_bridge = StorageBridge(app.logger)
         self.storage_bridge.connect()
         self.agents = self.storage_bridge.get_collection()
