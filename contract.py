@@ -68,18 +68,12 @@ class Contract(Condition):
     def call(self, caller, method, msg):
         self.caller = caller
         m = getattr(self.obj, method)
-        reply = m(*msg['values'])
-        if not reply:
-            reply = self.get_info()
-        return reply
+        return m(**msg['values'])
 
     def call_off_chain(self, caller, method, msg):
         self.caller = caller
         m = getattr(self.obj, method)
-        reply = m(*msg['values'])
-        if reply is None:
-            reply = self.get_info()
-        return reply
+        return m(**msg['values'])
 
     def connect(self, address, pid, me):
         if pid != me:
