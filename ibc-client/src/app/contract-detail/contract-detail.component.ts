@@ -32,6 +32,11 @@ export class ContractDetailComponent implements OnInit {
     this.contractService.getContract(this.agent, this.name).subscribe(contract => this.contract = contract);
   }
 
+  updateReply(something) {
+    console.log(something);
+    this.getContract();
+  }
+
   goBack(): void {
     this.location.back();
   }

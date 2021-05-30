@@ -15,7 +15,7 @@ from firebase_storage import StorageBridge, Storage
 app = Flask(__name__, static_folder='ibc')
 CORS(app)
 log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR)
+log.setLevel(logging.DEBUG)
 gunicorn_logger = logging.getLogger('gunicorn.error')
 app.logger.handlers = gunicorn_logger.handlers
 app.logger.setLevel(logging.DEBUG)
@@ -80,7 +80,7 @@ class IBC:
                         contract = self.state.get(contract_name)
                         if not contract:
                             return {'reply': 'contract not found'}
-                        reply = contract.call_off_chain(record['caller'], method, message)
+                        reply = contract.call(record['caller'], method, message)
                 else:
                     if record_type == 'GET':
                         if internal:
@@ -145,6 +145,7 @@ def favicon():
 
 
 @app.route('/', methods=['GET'])
+@app.route('/ibc/', methods=['GET'])
 def view():  # pragma: no cover
     return render_template('index.html')
 #    f = open('ui.html', 'r')
@@ -172,6 +173,7 @@ def ibc_handler(identity, contract, method):
               'contract': contract,
               'method': method,
               'message': msg}
+    log.debug(record)
     if not internal:
         record['caller'] = identity
     response = jsonify(IBC(identity).handle_record(record, internal))

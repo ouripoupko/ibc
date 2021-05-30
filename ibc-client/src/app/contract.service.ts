@@ -26,7 +26,9 @@ export class ContractService {
   }
 
   getIdentities(): Observable<string[]> {
-    return this.http.get<string[]>('app');
+    return this.http.get<string[]>('app').pipe(
+      tap(_ => this.log(`fetched identities`)),
+    );
   }
 
   setIdentity(name: string): Observable<string[]> {
@@ -57,7 +59,7 @@ export class ContractService {
   /** GET **/
   getContract(agent: string, name: string): Observable<Contract> {
     return this.http.get<Contract>(`app/${agent}/${name}`).pipe(
-      tap((newContract: Contract) => console.log(newContract)), //_ => this.log(`fetched contract name=${name}`); console.log(_);),
+      tap((newContract: Contract) => this.log(`fetched contract name=${name}`)),
       catchError(this.handleError<Contract>(`getContract name=${name}`))
     );
   }

@@ -28,7 +28,12 @@ export class OperationComponent implements OnChanges {
   }
 
   call(): void {
-    this.contractService.callContract( this.agent, this.name, this.method, {values: this.values} as Method)
+    let val_dict = {};
+    for(let i in this.arguments) {
+      val_dict[this.arguments[i]] = this.values[i] ? JSON.parse(this.values[i]) : null;
+    }
+    console.log(val_dict);
+    this.contractService.callContract( this.agent, this.name, this.method, {values: val_dict} as Method)
       .subscribe(contract => this.updateContractEvent.emit(contract));
   }
 }
