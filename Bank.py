@@ -1,15 +1,19 @@
 class Bank:
 
     def __init__(self):
-        self.accounts = {}
+        self.accounts = Storage('accounts')
 
-    def create(self, pid):
-        self.accounts[pid] = 500
+    def create(self):
+        self.accounts[master()] = {'balance': 500}
+        return {key: self.accounts[key] for key in self.accounts}
 
-    def pay(self, from_pid, to_pid, amount):
+    def pay_to(self, to_pid, amount):
+        _from_pid = master()
         amount = int(amount)
-        if self.accounts.get(from_pid) and self.accounts[from_pid] >= amount:
-            self.accounts[from_pid] = self.accounts[from_pid] - amount
-            if not self.accounts.get(to_pid):
-                self.create(to_pid)
-            self.accounts[to_pid] = self.accounts[to_pid] + amount
+        if _from_pid in self.accounts and self.accounts[_from_pid]['balance'] >= amount and to_pid in self.accounts:
+            self.accounts.update(_from_pid, {'balance': self.accounts[_from_pid]['balance'] - amount})
+            self.accounts.update(to_pid, {'balance': self.accounts[to_pid]['balance'] + amount})
+        return {key: self.accounts[key] for key in self.accounts}
+
+    def get_accounts(self):
+        return {key: self.accounts[key] for key in self.accounts}

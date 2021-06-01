@@ -24,8 +24,10 @@ export class ContractsComponent implements OnInit {
       private contractService: ContractService) { }
 
   ngOnInit(): void {
-    this.agent = this.route.snapshot.paramMap.get('agent');
-    this.getContracts();
+    this.route.params.subscribe(params => {
+      this.agent = this.route.snapshot.paramMap.get('agent');
+      this.getContracts();
+    })
   }
 
 }

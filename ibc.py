@@ -54,7 +54,7 @@ class IBC:
 
     def handle_record(self, record, internal, direct=False):
         global start
-        print('handle_record ' + str((time.time()-start)*1000))
+#        print('handle_record ' + str((time.time()-start)*1000))
         print(str(direct)+' '+str(internal)+' '+str(self.identity)+' '+str(record))
         record_type = record['type']
         contract_name = record['contract']
@@ -178,7 +178,8 @@ def ibc_handler(identity, contract, method):
         record['caller'] = identity
     response = jsonify(IBC(identity).handle_record(record, internal))
     response.headers.add('Access-Control-Allow-Origin', '*')
-    print('before return ' + str((time.time() - start) * 1000))
+#    print('before return ' + str((time.time() - start) * 1000))
+    print(response)
     return response
 
 
@@ -218,6 +219,6 @@ class LoggingMiddleware(object):
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
     port = sys.argv[1]
-    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
+#    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     print(port)
     app.run(host='0.0.0.0', port=port, use_reloader=False)  #, threaded=False)
