@@ -77,7 +77,7 @@ class Deliberation:
     def get_statement_dynasty(self, parent, levels):
         _statements_dict = self.get_statements(parent)
         _current_kids_list = list(_statements_dict.keys())
-        for _level in range(levels):
+        for _level in range(levels-1):
             _next_level_kids = dict()
             for _kid in _current_kids_list:
                 _next_level_kids.update(self.get_statements(_kid))
