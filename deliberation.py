@@ -74,8 +74,22 @@ class Deliberation:
         _new_ranking = [entry for entry in _ranking if entry['owner'] != _owner]
         self.statements.update(sid, {'ranking_kids': _new_ranking})
 
+    def get_statement_dynasty(self, parent, levels):
+        _statements_dict = self.get_statements(parent)
+        _current_kids_list = list(_statements_dict.keys())
+        for _level in range(levels):
+            _next_level_kids = dict()
+            for _kid in _current_kids_list:
+                _next_level_kids.update(self.get_statements(_kid))
+            _current_kids_list = list(_next_level_kids.keys())
+            _statements_dict.update(_next_level_kids)
+        return _statements_dict
+
     def get_statements(self, parent):
-        _kids = self.statements[parent]['kids'] if parent else parameters.get('topics')
+        if parent:
+            _kids = [kid['ref'] for kid in self.statements[parent]['kids']]
+        else:
+            _kids = parameters.get('topics')
         return {kid: self.statements[kid] for kid in _kids}
 
     def get_average_scoring(self, sid, score_type):

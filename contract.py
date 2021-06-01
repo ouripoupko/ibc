@@ -44,7 +44,7 @@ class Contract(Condition):
         exec(self.code,
              {'__builtins__':
               {'__build_class__': __build_class__, '__name__': __name__,
-               'str': str, 'int': int, 'master': self.master, 'Storage': self.get_storage,
+               'str': str, 'int': int, 'list': list, 'range': range, 'dict': dict, 'master': self.master, 'Storage': self.get_storage,
                'parameters': self.storage_bridge.get_document('parameters', self.name, self.storage),
                'off_chain': self.handle_off_chain}}, empty_locals)
         class_object = list(empty_locals.values())[0]
