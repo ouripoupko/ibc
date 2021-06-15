@@ -6,6 +6,7 @@ import logging
 
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
 from flask_cors import CORS
+from flask_sse import sse
 from state import State
 from partner import Partner
 from blockchain import BlockChain
@@ -13,12 +14,13 @@ from firebase_storage import StorageBridge, Storage
 
 # Create the application instance
 app = Flask(__name__, static_folder='ibc')
+app.config["REDIS_URL"] = "redis://localhost"
+app.register_blueprint(sse, url_prefix='/stream')
 CORS(app)
-log = logging.getLogger('werkzeug')
-log.setLevel(logging.DEBUG)
 gunicorn_logger = logging.getLogger('gunicorn.error')
 app.logger.handlers = gunicorn_logger.handlers
 app.logger.setLevel(logging.DEBUG)
+logger = app.logger
 
 start = None
 
@@ -26,7 +28,7 @@ start = None
 class IBC:
     def __init__(self, identity):
         self.my_address = os.getenv('MY_ADDRESS')
-        self.storage_bridge = StorageBridge(app.logger)
+        self.storage_bridge = StorageBridge(logger)
         self.storage_bridge.connect()
         self.agents = self.storage_bridge.get_collection()
         self.identity = identity
@@ -55,7 +57,6 @@ class IBC:
     def handle_record(self, record, internal, direct=False):
         global start
 #        print('handle_record ' + str((time.time()-start)*1000))
-        print(str(direct)+' '+str(internal)+' '+str(self.identity)+' '+str(record))
         record_type = record['type']
         contract_name = record['contract']
         method = record['method']
@@ -75,6 +76,7 @@ class IBC:
 #                            if not contract.consent(record, True):
 #                                return {'reply': 'consensus protocol failed'}
                         reply = self.commit(contract.call, record, record['caller'], method, message)
+                        sse.publish('True', type='message', channel=self.identity+contract_name)
                     elif record_type == 'POST':
                         # a client calls an off chain method
                         contract = self.state.get(contract_name)
@@ -160,7 +162,7 @@ def view():  # pragma: no cover
            defaults={'identity': '', 'contract': '', 'method': ''})
 @app.route('/ibc/app/<identity>', methods=['GET', 'POST', 'PUT', 'DELETE'],
            defaults={'contract': '', 'method': ''})
-@app.route('/ibc/app/<identity>/<contract>', methods=['GET', 'POST', 'PUT', 'DELETE'],  #, 'OPTIONS'],
+@app.route('/ibc/app/<identity>/<contract>', methods=['GET', 'POST', 'PUT', 'DELETE'],
            defaults={'method': ''})
 @app.route('/ibc/app/<identity>/<contract>/<method>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def ibc_handler(identity, contract, method):
@@ -173,33 +175,14 @@ def ibc_handler(identity, contract, method):
               'contract': contract,
               'method': method,
               'message': msg}
-    log.debug(record)
+    logger.debug(record)
     if not internal:
         record['caller'] = identity
     response = jsonify(IBC(identity).handle_record(record, internal))
     response.headers.add('Access-Control-Allow-Origin', '*')
 #    print('before return ' + str((time.time() - start) * 1000))
-    print(response)
+    logger.debug(response.get_json())
     return response
-
-
-@app.route('/stream/<identity>/<contract_name>')
-def stream(identity, contract_name):
-
-    def event_stream():
-        state = IBC(identity).state
-        if state:
-            contract = state.get(contract_name)
-            if contract:
-                state.listen(contract_name)
-                print("working")
-                while True:
-                    # wait for source data to be available, then push it
-                    with contract:
-                        contract.wait()
-                    yield 'data: {}\n\n'.format('True')
-
-    return Response(event_stream(), mimetype="text/event-stream")
 
 
 class LoggingMiddleware(object):
@@ -218,6 +201,8 @@ class LoggingMiddleware(object):
 
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
+    logger = logging.getLogger('werkzeug')
+    logger.setLevel(logging.DEBUG)
     port = sys.argv[1]
 #    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     print(port)

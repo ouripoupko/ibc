@@ -14,7 +14,6 @@ class StorageBridge:
 
     def connect(self):
         self.db = firestore.Client()
-        self.logger.info('I am here, but what should I print? '+os.getenv('GOOGLE_APPLICATION_CREDENTIALS'))
         self.ibc = self.db.collection('ibc')
 
     def get_transaction(self):
@@ -99,7 +98,7 @@ class Storage:
             self.collection.document(key).update({name: firestore.ArrayUnion([value])})
 
     def get(self, field, condition, value):
-        return [doc.to_dict() for doc in self.collection.where(field, condition, value).get()]
+        return {doc.id: doc.to_dict() for doc in self.collection.where(field, condition, value).get()}
 
     def append(self, record):
         key = hashlib.sha1(str(record).encode("utf-8")).hexdigest()

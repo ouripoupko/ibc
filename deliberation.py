@@ -3,15 +3,17 @@ class Deliberation:
     def __init__(self):
         self.statements = Storage('statements')
         if parameters.get('topics') is None:
-            parameters.update({'topics': []})
+            parameters.update({'topics': [], 'counter': 1})
 
     def create_statement(self, parents, text, tags):
         if not parents:
             parents = []
         _parents_ref = [{'ref': ref, 'tags': [], 'owner': master()} for ref in parents]
+        _counter = parameters.get('counter')
+        parameters.increment('counter', 1)
         _record = {'parents': _parents_ref, 'kids': [],
                    'owner': master(), 'text': text, 'tags': tags,
-                   'scoring': [], 'ranking_kids': []}
+                   'scoring': [], 'ranking_kids': [], 'counter': _counter}
         _sid = self.statements.append(_record)
         for _ref in parents:
             self.statements.update_append(_ref, 'kids', {'ref': _sid, 'tags': [], 'owner': master()})
@@ -91,6 +93,32 @@ class Deliberation:
         else:
             _kids = parameters.get('topics')
         return {kid: self.statements[kid] for kid in _kids}
+
+    def get_parents_array(self, sid, statement):
+        reply = []
+        for parent_ref in statement['parents']:
+            key = parent_ref['ref']
+            parent = self.statements[key]
+            paths = self.get_parents_array(key, parent)
+            reply.extend([path+[sid] for path in paths])
+        if not reply:
+            reply.append([sid])
+        return reply
+
+    def get_updates(self, counter):
+        _updates = self.statements.get('counter', '>', counter)
+        reply = []
+        for key, value in _updates.items():
+            paths = self.get_parents_array(key, value)
+            keys = {} if paths else {key: None}
+            for path in paths:
+                head = keys
+                for item in path:
+                    if not head.get(item):
+                        head[item] = {}
+                    head = head[item]
+            reply.append({'keys': keys, 'record': value})
+        return reply
 
     def get_average_scoring(self, sid, score_type):
         scoring = self.statements[sid]['scoring']

@@ -1,12 +1,10 @@
 from builtins import __build_class__
-from threading import Condition
 from partner import Partner
 from protocol import Protocol
 
 
-class Contract(Condition):
+class Contract:
     def __init__(self, storage_bridge, storage, name, code, me):
-        Condition.__init__(self)
         # the database
         self.storage_bridge = storage_bridge
         self.storage = storage

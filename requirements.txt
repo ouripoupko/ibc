@@ -1,6 +1,7 @@
 firebase-admin==4.5.3
 Flask==1.1.2
 Flask-Cors==3.0.10
+Flask-SSE==1.0.0
 google-api-core==1.26.2
 google-api-python-client==2.0.2
 google-auth==1.28.0
