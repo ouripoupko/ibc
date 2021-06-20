@@ -9,10 +9,11 @@ The state is basically the application data of each of the contracts. <br><br>
 	- self.agents[self.identity] = something # initializing a new agent
 	- commit()
 		- The only function which writes to the db (except for intializing an agent above!)
-		- keeps the state execution in the correct order 
+		- keeps the state execution in the correct order. Waits if it is not yet its turn.
+		- As a result, execution of transactions to the same contract is linearized.
+		- between agents and between contracts execution may run in parallel
 		- writes to the ledger
-		- waits to make sure it is the only one using the db right now
-		- changes the state in accordance with the ledger state it just commited
+		- changes the state in accordance with the ledger transaction it just commited
 		- note that the states can only change one at a time so contracts can run simultaneously..
 - in blockchain: (the one that deals with the ledger)
 	- write to the ledger collection (under a specific agent document)
