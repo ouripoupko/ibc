@@ -6,7 +6,7 @@ import logging
 
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
 from flask_cors import CORS
-from flask_sse import sse
+from redis import Redis
 from state import State
 from partner import Partner
 from blockchain import BlockChain
@@ -14,8 +14,6 @@ from firebase_storage import StorageBridge, Storage
 
 # Create the application instance
 app = Flask(__name__, static_folder='ibc')
-app.config["REDIS_URL"] = "redis://localhost"
-app.register_blueprint(sse, url_prefix='/stream')
 CORS(app)
 gunicorn_logger = logging.getLogger('gunicorn.error')
 app.logger.handlers = gunicorn_logger.handlers
@@ -76,8 +74,8 @@ class IBC:
 #                            if not contract.consent(record, True):
 #                                return {'reply': 'consensus protocol failed'}
                         reply = self.commit(contract.call, record, record['caller'], method, message)
-                        with app.app_context():
-                            sse.publish('True', type='message', channel=self.identity+contract_name)
+                        db = Redis(host='localhost', port=6379, db=0)
+                        db.publish(self.identity+contract_name, 'True')
                     elif record_type == 'POST':
                         # a client calls an off chain method
                         contract = self.state.get(contract_name)
@@ -184,6 +182,20 @@ def ibc_handler(identity, contract, method):
 #    print('before return ' + str((time.time() - start) * 1000))
     logger.debug(response.get_json())
     return response
+
+
+@app.route('/stream/<identity>/<contract_name>')
+def stream(identity, contract_name):
+
+    def event_stream():
+        db = Redis(host='localhost', port=6379, db=0)
+        channel = db.pubsub()
+        channel.subscribe(identity+contract_name)
+        for message in channel.listen():
+            if message.get('type') == 'message':
+                yield 'data: {}\n\n'.format('True')
+
+    return Response(event_stream(), mimetype="text/event-stream")
 
 
 class LoggingMiddleware(object):
