@@ -76,7 +76,8 @@ class IBC:
 #                            if not contract.consent(record, True):
 #                                return {'reply': 'consensus protocol failed'}
                         reply = self.commit(contract.call, record, record['caller'], method, message)
-                        sse.publish('True', type='message', channel=self.identity+contract_name)
+                        with app.app_context():
+                            sse.publish('True', type='message', channel=self.identity+contract_name)
                     elif record_type == 'POST':
                         # a client calls an off chain method
                         contract = self.state.get(contract_name)
@@ -122,8 +123,8 @@ class IBC:
                             # a client requests a join
                             partner = Partner(message['address'], message['pid'], self.identity)
                             records = partner.connect(contract_name, self.my_address)
-                            for record in records:
-                                self.handle_record(record, False, direct=True)
+                            for key in sorted(records.keys()):
+                                self.handle_record(records[key], False, direct=True)
                             reply = {'reply': 'joined a contract'}
             else:
                 # a client asks for a list of contracts
@@ -190,10 +191,10 @@ class LoggingMiddleware(object):
         self._app = the_app
 
     def __call__(self, env, resp):
-        print('REQUEST', env)
+        logger.debug('REQUEST '+env)
 
         def log_response(status, headers, *args):
-            print('RESPONSE', status, headers)
+            logger.debug('RESPONSE '+str(status)+' '+str(headers))
             return resp(status, headers, *args)
 
         return self._app(env, log_response)
