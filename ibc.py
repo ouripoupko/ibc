@@ -191,9 +191,13 @@ def stream(identity, contract_name):
         db = Redis(host='localhost', port=6379, db=0)
         channel = db.pubsub()
         channel.subscribe(identity+contract_name)
-        for message in channel.listen():
-            if message.get('type') == 'message':
-                yield 'data: {}\n\n'.format('True')
+        while True:
+            message = channel.get_message(timeout=10)
+            if message:
+                if message.get('type') == 'message':
+                    yield 'data: {}\n\n'.format('True')
+            else:
+                yield 'data: {}\n\n'.format('False')
 
     return Response(event_stream(), mimetype="text/event-stream")
 
