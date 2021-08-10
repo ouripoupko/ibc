@@ -17,8 +17,7 @@ def cleanup(storage, hash_code):
 
 
 class Protocol:
-    def __init__(self, storage_bridge, storage, contract_name, partners):
-        self.storage_bridge = storage_bridge
+    def __init__(self, storage, contract_name, partners):
         self.storage = storage
         self.contract_name = contract_name
         self.partners = partners

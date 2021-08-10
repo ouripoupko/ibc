@@ -2,23 +2,30 @@ class Deliberation:
 
     def __init__(self):
         self.statements = Storage('statements')
-        if parameters.get('topics') is None:
-            parameters.update({'topics': [], 'counter': 1})
+        self.parameters = Storage('parameters')['parameters']
+        if not self.parameters.exists():
+            self.parameters['topics'] = []
+            self.parameters['counter'] = 1
 
     def create_statement(self, parents, text, tags):
         if not parents:
             parents = []
         _parents_ref = [{'ref': ref, 'tags': [], 'owner': master()} for ref in parents]
-        _counter = parameters.get('counter')
-        parameters.increment('counter', 1)
+        _counter = self.parameters['counter']
+        self.parameters['counter'] = _counter + 1
         _record = {'parents': _parents_ref, 'kids': [],
                    'owner': master(), 'text': text, 'tags': tags,
                    'scoring': [], 'ranking_kids': [], 'counter': _counter}
-        _sid = self.statements.append(_record)
+        _sid = str(_counter)
+        self.statements[_sid] = _record
         for _ref in parents:
-            self.statements.update_append(_ref, 'kids', {'ref': _sid, 'tags': [], 'owner': master()})
+            _kids = self.statements[_ref]['kids']
+            _kids.append({'ref': _sid, 'tags': [], 'owner': master()})
+            self.statements[_ref] = {'kids': _kids}
         if not parents:
-            parameters.append('topics', _sid)
+            _topics = self.parameters['topics']
+            _topics.append(_sid)
+            self.parameters['topics'] = _topics
 
     def update_statement(self, sid, mode,
                          parents, kids, text, tags):
@@ -68,12 +75,12 @@ class Deliberation:
         self.statements.update(sid, {'scoring': _new_scoring})
 
     def set_ranking(self, sid, order):
-        self.statements.update_append(sid, 'ranking_kids', {'owner': master(), 'order': order})
+        self.statements.update(sid, {'ranking_kids.{}'.format(master()): order})
 
     def delete_ranking(self, sid):
         _ranking = self.statements[sid]['ranking_kids']
         _owner = master()
-        _new_ranking = [entry for entry in _ranking if entry['owner'] != _owner]
+        _new_ranking = {key: value for key, value in _ranking.entries() if key != _owner}
         self.statements.update(sid, {'ranking_kids': _new_ranking})
 
     def get_statement_dynasty(self, parent, levels):
@@ -91,8 +98,8 @@ class Deliberation:
         if parent:
             _kids = [kid['ref'] for kid in self.statements[parent]['kids']]
         else:
-            _kids = parameters.get('topics')
-        return {kid: self.statements[kid] for kid in _kids}
+            _kids = self.parameters['topics']
+        return {kid: self.statements[kid].get_dict() for kid in _kids}
 
     def get_parents_array(self, sid, statement):
         reply = []
@@ -134,12 +141,12 @@ class Deliberation:
         return data[index] if data_len % 2 else (data[index] + data[index + 1]) / 2.0
 
     def get_aggregated_ranking(self, sid):
-        ranking = self.statements[sid]['ranking']
+        ranking = self.statements[sid]['ranking_kids']
         kids = [ref['ref'] for ref in self.statements[sid]['kids']]
         n = len(kids)
         indexes = {ref: index for index, ref in enumerate(kids)}
         sum_matrix = [[0 for i in range(n)] for j in range[n]]
-        for order in ranking:
+        for order in ranking.values():
             unordered = set(kids)
             for above in order:
                 for below in unordered:

@@ -18,20 +18,6 @@ class Partner:
     def __repr__(self):
         return str({'class': 'Partner', 'id': self.pid, 'address': self.address})
 
-#    def call(self, params):
-#        threading.Thread(target=requests.post,
-#                         kwargs={'url': self.address + 'contract',
-#                                 'json': {'from': self.me, 'to': self.pid, 'msg': params}}).start()
-#        return {'reply': 'message sent to partner'}
-
-#    def get_contract(self, contract):
-#        try:
-#            reply = requests.get(self.address + 'ibc/app/' + self.pid + '/' + contract,
-#                                 params={'type': 'internal'}).json()
-#        except Exception as e:
-#            print(e)
-#        return reply
-
     def connect(self, contract, my_address):
         return requests.post(self.address + 'ibc/app/' + self.pid + '/' + contract,
                              params={'type': 'internal'},

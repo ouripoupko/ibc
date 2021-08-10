@@ -10,10 +10,10 @@ from redis import Redis
 from state import State
 from partner import Partner
 from blockchain import BlockChain
-from firebase_storage import StorageBridge, Storage
+from mongodb_storage import DBBridge, Collection
 
 # Create the application instance
-app = Flask(__name__, static_folder='ibc')
+app = Flask(__name__, static_folder='ibc', instance_path='/home/ouri/PycharmProjects/ibc/instance')
 CORS(app)
 gunicorn_logger = logging.getLogger('gunicorn.error')
 app.logger.handlers = gunicorn_logger.handlers
@@ -26,26 +26,23 @@ start = None
 class IBC:
     def __init__(self, identity):
         self.my_address = os.getenv('MY_ADDRESS')
-        self.storage_bridge = StorageBridge(logger)
-        self.storage_bridge.connect()
-        self.agents = self.storage_bridge.get_collection()
+        self.storage_bridge = DBBridge(logger).connect()
+        self.agents = self.storage_bridge.get_root_collection()
         self.identity = identity
-        self.state = State(self.identity, self.storage_bridge) if self.identity in self.agents else None
-        self.ledger = BlockChain(self.storage_bridge, self.identity) if self.state else None
+        identity_doc = self.agents[identity]
+        self.state = State(identity_doc) if identity_doc.exists() else None
+        self.ledger = BlockChain(identity_doc) if identity_doc.exists() else None
+
+    def __del__(self):
+        self.storage_bridge.disconnect()
 
     def commit(self, command, record, *args, **kwargs):
-        index = self.ledger.log(record)
-        last = self.agents[self.identity].get('last_executed', 0)
-        if last < index-1:
-            condition = Condition()
-            listener = self.storage_bridge.listen(self.agents, self.identity, condition)
-            while last < index-1:
-                with condition:
-                    condition.wait(1)
-                last = self.agents[self.identity].get('last_executed', 0)
-            self.storage_bridge.stop_listen(listener)
+        db = Redis(host='localhost', port=6379, db=0)
+        while not db.setnx(self.identity, 'locked'):
+            time.sleep(0.01)
+        self.ledger.log(record)
         reply = command(*args, **kwargs)
-        self.agents.update(self.identity, {'last_executed': index})
+        db.delete(self.identity)
         return reply
 
     @staticmethod
@@ -177,10 +174,14 @@ def ibc_handler(identity, contract, method):
     logger.debug(record)
     if not internal:
         record['caller'] = identity
-    response = jsonify(IBC(identity).handle_record(record, internal))
+    print('before handle ', time.time() - start)
+    ibc = IBC(identity)
+    response = jsonify(ibc.handle_record(record, internal))
+    del ibc
+    print('after handle ', time.time() - start)
     response.headers.add('Access-Control-Allow-Origin', '*')
-#    print('before return ' + str((time.time() - start) * 1000))
     logger.debug(response.get_json())
+    print('before return ', time.time() - start)
     return response
 
 

@@ -4,10 +4,9 @@ from protocol import Protocol
 
 
 class Contract:
-    def __init__(self, storage_bridge, storage, name, code, me):
+    def __init__(self, contract_doc, name, code, me):
         # the database
-        self.storage_bridge = storage_bridge
-        self.storage = storage
+        self.contract_doc = contract_doc
         # the contract
         self.name = name
         self.class_name = ''
@@ -18,11 +17,11 @@ class Contract:
         self.caller = None
         # the partners
         self.partners = []
-        self.partners_db = self.storage_bridge.get_document('partners', self.name, self.storage)
-        for key, value in self.partners_db.get_all().items():
-            self.partners.append(Partner(value, key, me))
+        self.partners_db = self.contract_doc.get_sub_collection('pda_partners')
+        for key in self.partners_db:
+            self.partners.append(Partner(self.partners_db[key]['address'], key, me))
         # consensus protocols
-        self.protocol_storage = self.storage_bridge.get_collection(me, 'protocols')
+        self.protocol_storage = self.contract_doc.get_sub_collection('pda_protocols')
 
     def __repr__(self):
         return self.name
@@ -34,7 +33,7 @@ class Contract:
         return self.caller
 
     def get_storage(self, name):
-        return self.storage_bridge.get_collection(self.name, name, self.storage)
+        return self.contract_doc.get_sub_collection(f'contract_{name}')
 
     def run(self, caller):
         self.caller = caller
@@ -42,9 +41,8 @@ class Contract:
         exec(self.code,
              {'__builtins__':
               {'__build_class__': __build_class__, '__name__': __name__,
-               'str': str, 'int': int, 'list': list, 'range': range, 'dict': dict, 'master': self.master, 'Storage': self.get_storage,
-               'parameters': self.storage_bridge.get_document('parameters', self.name, self.storage),
-               'off_chain': self.handle_off_chain}}, empty_locals)
+               'str': str, 'int': int, 'list': list, 'range': range, 'dict': dict, 'master': self.master,
+               'Storage': self.get_storage, 'off_chain': self.handle_off_chain}}, empty_locals)
         class_object = list(empty_locals.values())[0]
         self.class_name = class_object.__name__
         self.obj = class_object()
@@ -56,12 +54,7 @@ class Contract:
                                        list(getattr(self.obj, name).__code__.co_varnames)[1:]
                                        if not arg.startswith('_')]}
                         for name in method_names]
-        return self.get_info()
-
-    def get_info(self):
-        values = [list(iter(getattr(self.obj, attribute))) for attribute in self.members]
-        return {'name': self.name, 'contract': self.class_name, 'code': self.code,
-                'methods': self.methods, 'members': self.members, 'values': values}
+        return "ready"
 
     def call(self, caller, method, msg):
         self.caller = caller
@@ -75,12 +68,12 @@ class Contract:
     def connect(self, address, pid, me):
         if pid != me:
             self.partners.append(Partner(address, pid, me))
-            self.partners_db.update({pid: address})
+            self.partners_db[pid] = {'address': address}
 
     def consent(self, record, initiate):
         if initiate:
             return [partner.pid for partner in self.partners]
         if initiate and not self.partners:
             return True
-        protocol = Protocol(self.storage_bridge, self.protocol_storage, self.name, self.partners)
+        protocol = Protocol(self.protocol_storage, self.name, self.partners)
         return protocol.handle_message(record, initiate)
