@@ -13,7 +13,7 @@ from blockchain import BlockChain
 from mongodb_storage import DBBridge, Collection
 
 # Create the application instance
-app = Flask(__name__, static_folder='ibc', instance_path='/home/ouri/PycharmProjects/ibc/instance')
+app = Flask(__name__, static_folder='ibc', instance_path=f'{os.getcwd()}/instance')
 CORS(app)
 gunicorn_logger = logging.getLogger('gunicorn.error')
 app.logger.handlers = gunicorn_logger.handlers

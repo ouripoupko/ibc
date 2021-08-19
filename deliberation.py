@@ -12,16 +12,18 @@ class Deliberation:
             parents = []
         _parents_ref = [{'ref': ref, 'tags': [], 'owner': master()} for ref in parents]
         _counter = self.parameters['counter']
-        self.parameters['counter'] = _counter + 1
         _record = {'parents': _parents_ref, 'kids': [],
                    'owner': master(), 'text': text, 'tags': tags,
-                   'scoring': [], 'ranking_kids': [], 'counter': _counter}
-        _sid = str(_counter)
+                   'scoring': [], 'ranking_kids': {}, 'counter': _counter}
+        _sid = str(_counter).zfill(15)
+        _counter = _counter + 1
         self.statements[_sid] = _record
         for _ref in parents:
             _kids = self.statements[_ref]['kids']
             _kids.append({'ref': _sid, 'tags': [], 'owner': master()})
-            self.statements[_ref] = {'kids': _kids}
+            self.statements[_ref] = {'kids': _kids, 'counter': _counter}
+            _counter = _counter + 1
+        self.parameters['counter'] = _counter
         if not parents:
             _topics = self.parameters['topics']
             _topics.append(_sid)
@@ -75,7 +77,9 @@ class Deliberation:
         self.statements.update(sid, {'scoring': _new_scoring})
 
     def set_ranking(self, sid, order):
-        self.statements.update(sid, {'ranking_kids.{}'.format(master()): order})
+        _counter = self.parameters['counter']
+        self.parameters['counter'] = _counter + 1
+        self.statements[sid] = {f'ranking_kids.{master()}': order, 'counter': _counter}
 
     def delete_ranking(self, sid):
         _ranking = self.statements[sid]['ranking_kids']
@@ -101,31 +105,8 @@ class Deliberation:
             _kids = self.parameters['topics']
         return {kid: self.statements[kid].get_dict() for kid in _kids}
 
-    def get_parents_array(self, sid, statement):
-        reply = []
-        for parent_ref in statement['parents']:
-            key = parent_ref['ref']
-            parent = self.statements[key]
-            paths = self.get_parents_array(key, parent)
-            reply.extend([path+[sid] for path in paths])
-        if not reply:
-            reply.append([sid])
-        return reply
-
     def get_updates(self, counter):
-        _updates = self.statements.get('counter', '>', counter)
-        reply = []
-        for key, value in _updates.items():
-            paths = self.get_parents_array(key, value)
-            keys = {} if paths else {key: None}
-            for path in paths:
-                head = keys
-                for item in path:
-                    if not head.get(item):
-                        head[item] = {}
-                    head = head[item]
-            reply.append({'keys': keys, 'record': value})
-        return reply
+        return self.statements.get('counter', '>', counter)
 
     def get_average_scoring(self, sid, score_type):
         scoring = self.statements[sid]['scoring']
@@ -139,54 +120,3 @@ class Deliberation:
         data_len = len(data)
         index = (data_len - 1) // 2
         return data[index] if data_len % 2 else (data[index] + data[index + 1]) / 2.0
-
-    def get_aggregated_ranking(self, sid):
-        ranking = self.statements[sid]['ranking_kids']
-        kids = [ref['ref'] for ref in self.statements[sid]['kids']]
-        n = len(kids)
-        indexes = {ref: index for index, ref in enumerate(kids)}
-        sum_matrix = [[0 for i in range(n)] for j in range[n]]
-        for order in ranking.values():
-            unordered = set(kids)
-            for above in order:
-                for below in unordered:
-                    above_index = indexes[above]
-                    below_index = indexes[below]
-                    sum_matrix[above_index][below_index] += 1
-                unordered.remove(above)
-        total_order = []
-        for index in range(n):
-            first_above = 0
-            found = False
-            while len(total_order) > first_above and not found:
-                compare_list = total_order[first_above]
-                if not isinstance(compare_list, list):
-                    compare_list = [compare_list]
-                for compare in compare_list:
-                    if sum_matrix[index][compare] >= sum_matrix[compare][index]:
-                        found = True
-                        break
-                first_above += 1
-            last_below = len(total_order)
-            while last_below > 0:
-                last_below -= 1
-                compare_list = total_order[first_above]
-                if not isinstance(compare_list, list):
-                    compare_list = [compare_list]
-                for compare in compare_list:
-                    if sum_matrix[index][compare] <= sum_matrix[compare][index]:
-                        found = True
-                        break
-            if last_below >= first_above:
-                value = []
-                for inner_index in range(first_above, last_below+1):
-                    if isinstance(total_order[inner_index], list):
-                        value.extend(total_order[inner_index])
-                    else:
-                        value.append(total_order[inner_index])
-                    del total_order[first_above:last_below+1]
-                value.append(index)
-            else:
-                value = index
-            total_order.insert(first_above, value)
-        return total_order

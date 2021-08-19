@@ -30,6 +30,7 @@ class Collection:
         return Document(self, key)
 
     def __setitem__(self, key, value):
+        value['_id'] = key
         self.collection.update_one({'_id': key}, {'$set': value}, upsert=True)
 
     def __delitem__(self, key):
