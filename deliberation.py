@@ -12,18 +12,16 @@ class Deliberation:
             parents = []
         _parents_ref = [{'ref': ref, 'tags': [], 'owner': master()} for ref in parents]
         _counter = self.parameters['counter']
+        self.parameters['counter'] = _counter + 1
         _record = {'parents': _parents_ref, 'kids': [],
                    'owner': master(), 'text': text, 'tags': tags,
                    'scoring': [], 'ranking_kids': {}, 'counter': _counter}
         _sid = str(_counter).zfill(15)
-        _counter = _counter + 1
         self.statements[_sid] = _record
         for _ref in parents:
             _kids = self.statements[_ref]['kids']
             _kids.append({'ref': _sid, 'tags': [], 'owner': master()})
             self.statements[_ref] = {'kids': _kids, 'counter': _counter}
-            _counter = _counter + 1
-        self.parameters['counter'] = _counter
         if not parents:
             _topics = self.parameters['topics']
             _topics.append(_sid)
