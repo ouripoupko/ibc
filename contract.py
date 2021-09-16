@@ -79,3 +79,8 @@ class Contract:
             return True
         protocol = Protocol(self.protocol_storage, self.name, self.me, self.partners, self.logger)
         return protocol.handle_message(record, initiate)
+
+    def get_info(self):
+        values = [list(iter(getattr(self.obj, attribute))) for attribute in self.members]
+        return {'name': self.name, 'contract': self.class_name, 'code': self.code,
+                'methods': self.methods, 'members': self.members, 'values': values}

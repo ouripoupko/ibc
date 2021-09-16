@@ -84,6 +84,9 @@ class Document:
     def __contains__(self, item):
         return item in self.storage.collection.find_one({'_id': self.key})
 
+    def __iter__(self):
+        return iter(self.storage.collection.find_one({'_id': self.key}))
+
     def create_sub_collection(self, name):
         uid = str(uuid.uuid4())
         self.storage[self.key] = {name: uid}
