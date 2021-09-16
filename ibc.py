@@ -224,7 +224,7 @@ class LoggingMiddleware(object):
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
     logger = logging.getLogger('werkzeug')
-    logger.setLevel(logging.ERROR)
+    logger.setLevel(logging.INFO)
     port = sys.argv[1]
 #    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     print(port)

@@ -38,14 +38,14 @@ class Protocol:
     def leader_is_me(self):
         return self.names[self.order[self.parameters['view']]] == self.me
 
-    def send_request(self, record, partner_id):
+    def send_request(self, record):
         data = {'o': record,
                 't': datetime.now().strftime('%Y%m%d%H%M%S%f'),
                 'd': hashlib.sha256(str(record).encode('utf-8')).hexdigest(),
                 'c': self.me}
         self.store_request(data)
         for partner in self.partners:
-            partner[partner_id].consent(self.contract_name, ProtocolStep.REQUEST, data)
+            partner.consent(self.contract_name, ProtocolStep.REQUEST.name, data)
         return data['d']
 
     def receive_request(self, data):
@@ -55,28 +55,28 @@ class Protocol:
 
     def store_request(self, data):
         record = self.storage[data['d']]
-        if record and record['step'] == ProtocolStep.PRE_PREPARE:
+        if record.exists() and record['step'] == ProtocolStep.PRE_PREPARE.name:
             step = ProtocolStep.PREPARE
         else:
             step = ProtocolStep.REQUEST
         self.storage[data['d']] = {'record': data['o'],
                                    'timestamp': data['t'],
                                    'client': data['c'],
-                                   'step': step}
+                                   'step': step.name}
 
     def send_pre_prepare(self, hash_code):
         index = self.parameters['next_index']
         self.parameters['next_index'] = index+1
-        data = {'v': self.view,
+        data = {'v': self.parameters['view'],
                 'n': index,
                 'd': hash_code}
         for partner in self.partners:
-            partner.consent(self.contract_name, ProtocolStep.PRE_PREPARE, data)
+            partner.consent(self.contract_name, ProtocolStep.PRE_PREPARE.name, data)
         self.store_pre_prepare(data)
 
     def receive_pre_prepare(self, data):
         # I should check signatures and digest, but I am lazy
-        if data['v'] != self.view:
+        if data['v'] != self.parameters['view']:
             return
         if str(data['n']) in self.storage:
             return
@@ -88,15 +88,15 @@ class Protocol:
         return self.store_pre_prepare(data)
 
     def store_pre_prepare(self, data):
-        self.storage[str(data['n'])] = data['d']
+        self.storage[str(data['n'])] = {'hash': data['d']}
         record = self.storage[data['d']]
-        if record and record['step'] == ProtocolStep.REQUEST:
+        if record and record['step'] == ProtocolStep.REQUEST.name:
             step = ProtocolStep.PREPARE
         else:
             step = ProtocolStep.PRE_PREPARE
         self.storage[data['d']] = {'view': data['v'],
                                    'index': data['n'],
-                                   'step': step}
+                                   'step': step.name}
         return self.send_phase(data['d'], ProtocolStep.PREPARE)
 
     def send_phase(self, hash_code, phase):
@@ -106,12 +106,12 @@ class Protocol:
                 'd': hash_code,
                 'i': self.me}
         for partner in self.partners:
-            partner.consent(self.contract_name, phase, data)
+            partner.consent(self.contract_name, phase.name, data)
         return self.store_phase(data, phase)
 
     def receive_prepare(self, data):
         # I should check signatures, but I am lazy
-        if data['v'] != self.view:
+        if data['v'] != self.parameters['view']:
             return
         if data['n'] < self.parameters['low_mark'] or data['n'] > self.parameters['high_mark']:
             return
@@ -121,7 +121,7 @@ class Protocol:
 
     def receive_commit(self, data):
         # I should check signatures, but I am lazy
-        if data['v'] != self.view:
+        if data['v'] != self.parameters['view']:
             return
         if data['n'] < self.parameters['low_mark'] or data['n'] > self.parameters['high_mark']:
             return
@@ -144,7 +144,7 @@ class Protocol:
         collection = []
         if phase.name in record:
             collection = record[phase.name]
-        if 'step' in record and record['step'] is phase and len(collection) * 3 > len(self.order) * 2:
+        if 'step' in record and record['step'] == phase.name and len(collection) * 3 > len(self.order) * 2:
             names = set()
             view = record['view']
             index = record['index']
@@ -153,10 +153,10 @@ class Protocol:
                     names.add(item['i'])
             if len(names) * 3 > len(self.order) * 2:
                 if phase is ProtocolStep.PREPARE:
-                    self.storage[hash_code] = {'step': ProtocolStep.COMMIT}
+                    self.storage[hash_code] = {'step': ProtocolStep.COMMIT.name}
                     return self.send_phase(hash_code, ProtocolStep.COMMIT)
                 if phase is ProtocolStep.COMMIT:
-                    self.storage[hash_code] = {'step': ProtocolStep.DONE}
+                    self.storage[hash_code] = {'step': ProtocolStep.DONE.name}
                     return True
         # just for readability. I am not supposed to be here
         return False
@@ -169,7 +169,7 @@ class Protocol:
         cumulative = ''
         while index < checkpoint:
             if str(index) in self.storage:
-                hash_code = self.storage[str(index)]
+                hash_code = self.storage[str(index)]['hash']
                 cumulative += hash_code
                 del self.storage[hash_code]
                 del self.storage[str(index)]
@@ -178,7 +178,7 @@ class Protocol:
                 'i': self.me}
         self.store_request(data)
         for partner in self.partners:
-            partner.consent(self.contract_name, ProtocolStep.CHECKPOINT, data)
+            partner.consent(self.contract_name, ProtocolStep.CHECKPOINT.name, data)
         self.parameters['checkpoint'] = checkpoint + 100
         self.parameters['checkpoint_hash'] = data['d']
         self.parameters['low_mark'] = low_mark+100
@@ -205,7 +205,7 @@ class Protocol:
                 hash_count[item['d']] = hash_count[item['d']]+1 if item['d'] in hash_count else 1
             for hash_code in hash_count:
                 if hash_count[hash_code] * 3 > len(self.order) * 2:
-                    if 'checkpoint_hash' in self.parameter:
+                    if 'checkpoint_hash' in self.parameters:
                         # me also passed checkpoint
                         if self.parameters['checkpoint_hash'] == hash_code:
                             # me on track. can clean up checkpoint
@@ -247,16 +247,16 @@ class Protocol:
         for hash_code in hash_count:
             if hash_count[hash_code] * 3 > len(self.order):
                 if str(last_index) in self.storage:
-                    stored_hash = self.storage[str(last_index)]
+                    stored_hash = self.storage[str(last_index)]['hash']
                     if stored_hash != hash_code:
                         del self.storage[stored_hash]
                 else:
-                    self.storage[str(last_index)] = hash_code
-                self.storage[hash_code] = {'step': ProtocolStep.DONE,
+                    self.storage[str(last_index)] = {'hash': hash_code}
+                self.storage[hash_code] = {'step': ProtocolStep.DONE.name,
                                            'request': records[hash_code]}
 
     def handle_message(self, record, initiate):
-        print(record)
+        self.logger.info(self.me + ' ' + str(record))
         # check if checkpoint was crossed
         if self.parameters['last_index'] > self.parameters['checkpoint'] and \
                 'checkpoint_hash' not in self.parameters:
@@ -265,12 +265,12 @@ class Protocol:
         if self.parameters['last_index'] < self.parameters['low_mark']:
             self.catchup()
         if initiate:
-            hash_code = self.send_request(record, self.order[self.view])
+            hash_code = self.send_request(record)
             if self.leader_is_me():
                 self.send_pre_prepare(hash_code)
         else:
-            message = record['msg']
-            step = message['step']
+            message = record['message']['msg']
+            step = ProtocolStep[message['step']]
             data = message['data']
             switcher = {ProtocolStep.REQUEST: self.receive_request,
                         ProtocolStep.PRE_PREPARE: self.receive_pre_prepare,
@@ -281,19 +281,22 @@ class Protocol:
             if receiver(data):
                 reply = []
                 last_index = self.parameters['last_index']
-                while last_index in self.storage:
-                    hash_code = self.storage[last_index]
+                while str(last_index) in self.storage:
+                    hash_code = self.storage[str(last_index)]['hash']
                     request = self.storage[hash_code]
-                    if request and 'step' in request and request['step'] is ProtocolStep.DONE:
+                    if request.exists() and 'step' in request and request['step'] == ProtocolStep.DONE.name:
                         reply.append(request['record'])
                         last_index += 1
                         self.parameters['last_index'] = last_index
                     else:
                         break
+                self.logger.info(self.me + ' leaving')
                 return reply
+        self.logger.info(self.me + ' leaving')
         return []
 
 # should wait on time out from request to change view
 # can optimize by sending bulk of messages when traffic is high
 # disregard requests with timestamp older than already committed timestamp
+# add timestamp to hash.
 # handle changes in partner list during protocol run
