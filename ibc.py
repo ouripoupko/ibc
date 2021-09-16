@@ -1,7 +1,6 @@
 import sys
 import os
 import time
-from threading import Condition, Thread
 import logging
 
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
@@ -10,14 +9,14 @@ from redis import Redis
 from state import State
 from partner import Partner
 from blockchain import BlockChain
-from mongodb_storage import DBBridge, Collection
+from mongodb_storage import DBBridge
 
 # Create the application instance
 app = Flask(__name__, static_folder='ibc', instance_path=f'{os.getcwd()}/instance')
 CORS(app)
 gunicorn_logger = logging.getLogger('gunicorn.error')
 app.logger.handlers = gunicorn_logger.handlers
-app.logger.setLevel(logging.DEBUG)
+app.logger.setLevel(logging.ERROR)
 logger = app.logger
 
 start = None
@@ -30,28 +29,32 @@ class IBC:
         self.agents = self.storage_bridge.get_root_collection()
         self.identity = identity
         identity_doc = self.agents[identity]
-        self.state = State(identity_doc) if identity_doc.exists() else None
-        self.ledger = BlockChain(identity_doc) if identity_doc.exists() else None
+        self.state = State(identity_doc, logger) if identity_doc.exists() else None
+        self.ledger = BlockChain(identity_doc, logger) if identity_doc.exists() else None
 
     def __del__(self):
         self.storage_bridge.disconnect()
 
     def commit(self, command, record, *args, **kwargs):
-        db = Redis(host='localhost', port=6379, db=0)
-        while not db.setnx(self.identity, 'locked'):
-            time.sleep(0.01)
         self.ledger.log(record)
         reply = command(*args, **kwargs)
-        db.delete(self.identity)
         return reply
-
-    @staticmethod
-    def handle_partner(pid, record):
-        IBC(pid).handle_record(record, False, True)
 
     def handle_record(self, record, internal, direct=False):
         global start
-#        print('handle_record ' + str((time.time()-start)*1000))
+        # print('handle_record ' + str((time.time()-start)*1000))
+
+        db = Redis(host='localhost', port=6379, db=0)
+        # mutex per identity
+        if not direct:
+            attempts = 0
+            while not db.setnx(self.identity, 'locked'):
+                time.sleep(0.01)
+                attempts += 1
+                if attempts > 10000:  # 100 seconds
+                    return {'reply': 'timeout - could not lock mutex'}
+            # print(self.identity, ' got mutex')
+
         record_type = record['type']
         contract_name = record['contract']
         method = record['method']
@@ -64,21 +67,19 @@ class IBC:
                         # a client is calling a method
                         contract = self.state.get(contract_name)
                         if not contract:
-                            return {'reply': 'contract not found'}
-                        if not direct:
-                            for pid in contract.consent(record, True):
-                                Thread(target=IBC.handle_partner, args=(pid, record)).start()
-#                            if not contract.consent(record, True):
-#                                return {'reply': 'consensus protocol failed'}
-                        reply = self.commit(contract.call, record, record['caller'], method, message)
-                        db = Redis(host='localhost', port=6379, db=0)
-                        db.publish(self.identity+contract_name, 'True')
+                            reply = {'reply': 'contract not found'}
+                        elif not direct and not contract.consent(record, True):
+                            reply = {'reply': 'consensus protocol failed'}
+                        else:
+                            reply = self.commit(contract.call, record, record['caller'], method, message)
+                            db.publish(self.identity+contract_name, 'True')
                     elif record_type == 'POST':
                         # a client calls an off chain method
                         contract = self.state.get(contract_name)
                         if not contract:
-                            return {'reply': 'contract not found'}
-                        reply = contract.call(record['caller'], method, message)
+                            reply = {'reply': 'contract not found'}
+                        else:
+                            reply = contract.call(record['caller'], method, message)
                 else:
                     if record_type == 'GET':
                         if internal:
@@ -90,30 +91,33 @@ class IBC:
                     elif record_type == 'PUT':
                         contract = self.state.get(contract_name)
                         if not contract:
-                            return {'reply': 'contract not found'}
-                        if internal:
+                            reply = {'reply': 'contract not found'}
+                        elif internal:
                             # a partner is reporting consensus protocol
-                            if contract.consent(record, False):
-                                original_record = record['message']['msg']['data']
-                                self.handle_record(original_record, False, direct=True)
+                            original_records = contract.consent(record, False)
+                            for original in original_records:
+                                self.handle_record(original, False, direct=True)
                             reply = {'reply': 'consensus protocol'}
                     elif record_type == 'POST':
                         if message.get('code'):
                             # a client deploys a contract
                             reply = self.commit(self.state.add, record, contract_name, message)
                         elif internal or direct:
-                            # a partner requests to join
-                            contract = self.state.get(contract_name)
-                            if not contract:
-                                return {'reply': 'contract not found'}
-                            if not direct:
-                                for pid in contract.consent(record, True):
-                                    Thread(target=IBC.handle_partner, args=(pid, record)).start()
-#                                if not contract.consent(record, True):
-#                                    return {'reply': 'consensus protocol failed'}
-                            self.commit(self.state.welcome, record, contract_name, message['msg'])
-                            if not direct:
-                                reply = self.ledger.get(contract_name)
+                            if 'address' in message['msg']:
+                                # a partner requests to join
+                                contract = self.state.get(contract_name)
+                                if not contract:
+                                    reply = {'reply': 'contract not found'}
+                                elif not direct and \
+                                        not contract.consent(record, True):
+                                    reply = {'reply': 'consensus protocol failed'}
+                                else:
+                                    self.commit(self.state.welcome, record, contract_name, message['msg'])
+                                    if not direct:
+                                        reply = self.ledger.get(contract_name)
+                            elif 'index' in message['msg']:
+                                log = self.ledger.get(contract_name)
+                                reply = log[message['msg']['index']]
                         else:  # this is the initiator of the join request
                             # a client requests a join
                             partner = Partner(message['address'], message['pid'], self.identity)
@@ -133,6 +137,9 @@ class IBC:
             # a client asks for a list of identities
             if record_type == 'GET':
                 reply = [agent for agent in self.agents]
+        # print(self.identity, ' release mutex')
+        if not direct:
+            db.delete(self.identity)
         return reply
 
 
@@ -174,14 +181,11 @@ def ibc_handler(identity, contract, method):
     logger.debug(record)
     if not internal:
         record['caller'] = identity
-    print('before handle ', time.time() - start)
     ibc = IBC(identity)
     response = jsonify(ibc.handle_record(record, internal))
     del ibc
-    print('after handle ', time.time() - start)
     response.headers.add('Access-Control-Allow-Origin', '*')
     logger.debug(response.get_json())
-    print('before return ', time.time() - start)
     return response
 
 
@@ -220,7 +224,7 @@ class LoggingMiddleware(object):
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
     logger = logging.getLogger('werkzeug')
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.ERROR)
     port = sys.argv[1]
 #    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     print(port)

@@ -4,13 +4,15 @@ from protocol import Protocol
 
 
 class Contract:
-    def __init__(self, contract_doc, name, code, me):
+    def __init__(self, contract_doc, name, code, me, logger):
         # the database
         self.contract_doc = contract_doc
         # the contract
         self.name = name
         self.class_name = ''
         self.code = code
+        self.me = me
+        self.logger = logger
         self.members = []
         self.methods = []
         self.obj = None
@@ -71,9 +73,9 @@ class Contract:
             self.partners_db[pid] = {'address': address}
 
     def consent(self, record, initiate):
-        if initiate:
-            return [partner.pid for partner in self.partners]
+        # if initiate:
+        #     return [partner.pid for partner in self.partners]
         if initiate and not self.partners:
             return True
-        protocol = Protocol(self.protocol_storage, self.name, self.partners)
+        protocol = Protocol(self.protocol_storage, self.name, self.me, self.partners, self.logger)
         return protocol.handle_message(record, initiate)

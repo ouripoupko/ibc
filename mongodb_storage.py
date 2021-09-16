@@ -34,7 +34,7 @@ class Collection:
         self.collection.update_one({'_id': key}, {'$set': value}, upsert=True)
 
     def __delitem__(self, key):
-        pass
+        self.collection.delete_one({'_id': key})
 
     def __iter__(self):
         for doc in self.collection.find():
@@ -50,8 +50,11 @@ class Collection:
         result = self.collection.insert_one(item)
         return str(result.inserted_id)
 
-    def get_last(self):
-        result = list(self.collection.find().sort('_id', -1).limit(1))
+    def get_last(self, field=None, value=None):
+        if field:
+            result = list(self.collection.find({field: value}).sort('_id', -1).limit(1))
+        else:
+            result = list(self.collection.find().sort('_id', -1).limit(1))
         return result[0]['_id'] if result else None
 
     def get(self, field, operator, value):
@@ -74,6 +77,9 @@ class Document:
 
     def __setitem__(self, key, value):
         self.storage[self.key] = {key: value}
+
+    def __delitem__(self, key):
+        self.storage.collection.update_one({'_id': self.key}, {'$unset': {key: ''}})
 
     def create_sub_collection(self, name):
         uid = str(uuid.uuid4())

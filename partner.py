@@ -1,7 +1,6 @@
 import threading
 import requests
 import time
-import sys
 
 
 def delayed_thread(t, url, params, json):
@@ -23,6 +22,12 @@ class Partner:
                              params={'type': 'internal'},
                              json={'from': self.me, 'to': self.pid,
                                    'msg': {'address': my_address, 'pid': self.me}}).json()
+
+    def catchup(self, contract, my_index):
+        return requests.post(self.address + 'ibc/app/' + self.pid + '/' + contract,
+                             params={'type': 'internal'},
+                             json={'from': self.me, 'to': self.pid,
+                                   'msg': {'index': my_index, 'pid': self.me}}).json()
 
     def consent(self, contract, step, data, delay=0):
         threading.Thread(target=delayed_thread,  # requests.post,
