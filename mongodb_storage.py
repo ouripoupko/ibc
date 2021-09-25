@@ -107,6 +107,9 @@ class Document:
         reply = self.storage.collection.find_one({'_id': self.key})
         return reply
 
+    def set_dict(self, value):
+        self.storage.collection.update_one({'_id': self.key}, {'$set': value}, upsert=True)
+
     def exists(self):
         return self.key in self.storage
 

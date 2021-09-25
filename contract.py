@@ -67,17 +67,21 @@ class Contract:
             return str(e)
         return reply
 
-    def connect(self, address, pid, me):
+    def connect(self, address, pid, me, my_address, welcome):
         if pid != me:
-            self.partners.append(Partner(address, pid, me))
+            partner = Partner(address, pid, me)
+            self.partners.append(partner)
             self.partners_db[pid] = {'address': address}
+            if welcome:
+                partner.welcome(self.name, my_address)
 
-    def consent(self, record, initiate):
+    def consent(self, record, initiate, direct):
         # if initiate:
         #     return [partner.pid for partner in self.partners]
-        if initiate and not self.partners:
-            return True
         protocol = Protocol(self.protocol_storage, self.name, self.me, self.partners, self.logger)
+        if not self.partners or direct:
+            protocol.record_message()
+            return True
         return protocol.handle_message(record, initiate)
 
     def get_info(self):

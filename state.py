@@ -8,15 +8,15 @@ class State:
         self.storage = agent_doc.get_sub_collection('contracts')
         self.logger = logger
 
-    def add(self, name, message):
+    def add(self, name, message, my_address):
         self.storage[name] = {'pid': message['pid'], 'code': message['code']}
-        contract = Contract(self.storage[name], name, message['code'], self.agent, self.logger)
-        contract.connect(message['address'], message['pid'], self.agent)
+        contract = self.get(name)
+        contract.connect(message['address'], message['pid'], self.agent, my_address, False)
         return f"contract {name} added"
 
-    def welcome(self, name, msg):
+    def welcome(self, name, msg, my_address, welcome):
         contract = self.get(name)
-        contract.connect(msg['address'], msg['pid'], self.agent)
+        contract.connect(msg['address'], msg['pid'], self.agent, my_address, welcome)
 
     def get(self, name):
         item = self.storage[name]

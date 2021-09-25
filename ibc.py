@@ -40,7 +40,7 @@ class IBC:
         reply = command(*args, **kwargs)
         return reply
 
-    def handle_record(self, record, internal, direct=False):
+    def handle_record(self, record, internal, direct=False, post_consent=False):
         global start
         # print('handle_record ' + str((time.time()-start)*1000))
 
@@ -53,7 +53,6 @@ class IBC:
                 attempts += 1
                 if attempts > 10000:  # 100 seconds
                     return {'reply': 'timeout - could not lock mutex'}
-            # print(self.identity, ' got mutex')
 
         record_type = record['type']
         contract_name = record['contract']
@@ -68,8 +67,8 @@ class IBC:
                         contract = self.state.get(contract_name)
                         if not contract:
                             reply = {'reply': 'contract not found'}
-                        elif not direct and not contract.consent(record, True):
-                            reply = {'reply': 'consensus protocol failed'}
+                        elif not post_consent and not contract.consent(record, True, direct):
+                            reply = {'reply': 'consensus protocol started'}
                         else:
                             reply = self.commit(contract.call, record, record['caller'], method, message)
                             db.publish(self.identity+contract_name, 'True')
@@ -84,7 +83,7 @@ class IBC:
                     if record_type == 'GET':
                         if internal:
                             # a partner asks for a ledger history
-                            reply = {'reply': 'Why do you want me ledger history?'}
+                            reply = self.ledger.get(contract_name)
                         else:
                             # a client asks for a contract state
                             reply = self.state.get_state(contract_name)
@@ -94,37 +93,45 @@ class IBC:
                             reply = {'reply': 'contract not found'}
                         elif internal:
                             # a partner is reporting consensus protocol
-                            original_records = contract.consent(record, False)
+                            original_records = contract.consent(record, False, False)
                             for original in original_records:
-                                self.handle_record(original, False, direct=True)
+                                self.handle_record(original, False, direct=True, post_consent = True)
                             reply = {'reply': 'consensus protocol'}
                     elif record_type == 'POST':
                         if message.get('code'):
                             # a client deploys a contract
-                            reply = self.commit(self.state.add, record, contract_name, message)
+                            reply = self.commit(self.state.add, record, contract_name, message, self.my_address)
                         elif internal or direct:
                             if 'address' in message['msg']:
                                 # a partner requests to join
                                 contract = self.state.get(contract_name)
                                 if not contract:
                                     reply = {'reply': 'contract not found'}
-                                elif not direct and \
-                                        not contract.consent(record, True):
-                                    reply = {'reply': 'consensus protocol failed'}
+                                elif not post_consent and not contract.consent(record, True, direct):
+                                    reply = {'reply': 'consensus protocol started'}
                                 else:
-                                    self.commit(self.state.welcome, record, contract_name, message['msg'])
-                                    if not direct:
-                                        reply = self.ledger.get(contract_name)
+                                    reply = self.commit(self.state.welcome,
+                                                        record,
+                                                        contract_name,
+                                                        message['msg'],
+                                                        self.my_address,
+                                                        message['to'] == self.identity)
                             elif 'index' in message['msg']:
+                                # a partner asks to catchup on specific record
                                 log = self.ledger.get(contract_name)
                                 reply = log[message['msg']['index']]
+                            elif 'welcome' in message['msg']:
+                                # a partner notifies success on join request
+                                partner = Partner(message['msg']['welcome'], message['msg']['pid'], self.identity)
+                                records = partner.get_log(contract_name)
+                                for key in sorted(records.keys()):
+                                    self.handle_record(records[key], False, direct=True)
+                                reply = {'reply': 'thank you partner'}
                         else:  # this is the initiator of the join request
                             # a client requests a join
                             partner = Partner(message['address'], message['pid'], self.identity)
-                            records = partner.connect(contract_name, self.my_address)
-                            for key in sorted(records.keys()):
-                                self.handle_record(records[key], False, direct=True)
-                            reply = {'reply': 'joined a contract'}
+                            partner.connect(contract_name, self.my_address)
+                            reply = {'reply': 'join request sent'}
             else:
                 # a client asks for a list of contracts
                 reply = [{'name': name} for name in self.state.get_contracts()]
@@ -137,7 +144,6 @@ class IBC:
             # a client asks for a list of identities
             if record_type == 'GET':
                 reply = [agent for agent in self.agents]
-        # print(self.identity, ' release mutex')
         if not direct:
             db.delete(self.identity)
         return reply
@@ -224,7 +230,7 @@ class LoggingMiddleware(object):
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
     logger = logging.getLogger('werkzeug')
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.ERROR)
     port = sys.argv[1]
 #    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     print(port)

@@ -1,11 +1,9 @@
 import threading
 import requests
-import time
 
 
-def delayed_thread(t, url, params, json):
-    time.sleep(t)
-    requests.put(url, params=params, json=json)
+def delayed_thread(func, url, params, json):
+    func(url, params=params, json=json)
 
 
 class Partner:
@@ -18,10 +16,26 @@ class Partner:
         return str({'class': 'Partner', 'id': self.pid, 'address': self.address})
 
     def connect(self, contract, my_address):
-        return requests.post(self.address + 'ibc/app/' + self.pid + '/' + contract,
-                             params={'type': 'internal'},
-                             json={'from': self.me, 'to': self.pid,
-                                   'msg': {'address': my_address, 'pid': self.me}}).json()
+        threading.Thread(target=delayed_thread,
+                         args=(requests.post,),
+                         kwargs={'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
+                                 'params': {'type': 'internal'},
+                                 'json': {'from': self.me, 'to': self.pid,
+                                          'msg': {'address': my_address, 'pid': self.me}}}).start()
+        return {'reply': 'message sent to partner'}
+
+    def welcome(self, contract, my_address):
+        threading.Thread(target=delayed_thread,
+                         args=(requests.post,),
+                         kwargs={'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
+                                 'params': {'type': 'internal'},
+                                 'json': {'from': self.me, 'to': self.pid,
+                                          'msg': {'welcome': my_address, 'pid': self.me}}}).start()
+        return {'reply': 'message sent to partner'}
+
+    def get_log(self, contract):
+        return requests.get(self.address + 'ibc/app/' + self.pid + '/' + contract,
+                            params={'type': 'internal'}).json()
 
     def catchup(self, contract, my_index):
         return requests.post(self.address + 'ibc/app/' + self.pid + '/' + contract,
@@ -29,9 +43,9 @@ class Partner:
                              json={'from': self.me, 'to': self.pid,
                                    'msg': {'index': my_index, 'pid': self.me}}).json()
 
-    def consent(self, contract, step, data, delay=0):
-        threading.Thread(target=delayed_thread,  # requests.post,
-                         args=(delay,),
+    def consent(self, contract, step, data):
+        threading.Thread(target=delayed_thread,
+                         args=(requests.put,),
                          kwargs={'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
                                  'params': {'type': 'internal'},
                                  'json': {'from': self.me, 'to': self.pid,

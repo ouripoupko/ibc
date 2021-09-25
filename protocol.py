@@ -90,7 +90,7 @@ class Protocol:
     def store_pre_prepare(self, data):
         self.storage[str(data['n'])] = {'hash': data['d']}
         record = self.storage[data['d']]
-        if record and record['step'] == ProtocolStep.REQUEST.name:
+        if record.exists() and record['step'] == ProtocolStep.REQUEST.name:
             step = ProtocolStep.PREPARE
         else:
             step = ProtocolStep.PRE_PREPARE
@@ -131,7 +131,7 @@ class Protocol:
 
     def store_phase(self, data, phase):
         record = self.storage[data['d']]
-        if not record or not record[phase.name]:
+        if not record.exists() or phase.name not in record:
             collection = []
         else:
             collection = record[phase.name]
@@ -254,6 +254,17 @@ class Protocol:
                     self.storage[str(last_index)] = {'hash': hash_code}
                 self.storage[hash_code] = {'step': ProtocolStep.DONE.name,
                                            'request': records[hash_code]}
+
+    def record_message(self):
+        params_dict = self.parameters.get_dict()
+        params_dict['last_index'] += 1
+        params_dict['next_index'] +=1
+        if params_dict['last_index'] > params_dict['checkpoint']:
+            params_dict['low_mark'] += 100
+            params_dict['checkpoint'] += 100
+            params_dict['high_mark'] += 100
+        self.parameters.set_dict(params_dict)
+        pass
 
     def handle_message(self, record, initiate):
         self.logger.info(self.me + ' ' + str(record))
