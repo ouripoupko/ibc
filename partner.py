@@ -1,36 +1,30 @@
-import threading
 import requests
 
 
-def delayed_thread(func, url, params, json):
-    func(url, params=params, json=json)
-
-
 class Partner:
-    def __init__(self, address, pid, me):
+    def __init__(self, address, pid, me, queue):
         self.address = address
         self.pid = pid
         self.me = me
+        self.queue = queue
 
     def __repr__(self):
         return str({'class': 'Partner', 'id': self.pid, 'address': self.address})
 
     def connect(self, contract, my_address):
-        threading.Thread(target=delayed_thread,
-                         args=(requests.post,),
-                         kwargs={'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
-                                 'params': {'type': 'internal'},
-                                 'json': {'from': self.me, 'to': self.pid,
-                                          'msg': {'address': my_address, 'pid': self.me}}}).start()
+        self.queue.put({'func': requests.post,
+                        'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
+                        'params': {'type': 'internal'},
+                        'json': {'from': self.me, 'to': self.pid,
+                                 'msg': {'address': my_address, 'pid': self.me}}})
         return {'reply': 'message sent to partner'}
 
     def welcome(self, contract, my_address):
-        threading.Thread(target=delayed_thread,
-                         args=(requests.post,),
-                         kwargs={'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
-                                 'params': {'type': 'internal'},
-                                 'json': {'from': self.me, 'to': self.pid,
-                                          'msg': {'welcome': my_address, 'pid': self.me}}}).start()
+        self.queue.put({'func': requests.post,
+                        'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
+                        'params': {'type': 'internal'},
+                        'json': {'from': self.me, 'to': self.pid,
+                                 'msg': {'welcome': my_address, 'pid': self.me}}})
         return {'reply': 'message sent to partner'}
 
     def get_log(self, contract):
@@ -44,10 +38,9 @@ class Partner:
                                    'msg': {'index': my_index, 'pid': self.me}}).json()
 
     def consent(self, contract, step, data):
-        threading.Thread(target=delayed_thread,
-                         args=(requests.put,),
-                         kwargs={'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
-                                 'params': {'type': 'internal'},
-                                 'json': {'from': self.me, 'to': self.pid,
-                                          'msg': {'step': step, 'data': data}}}).start()
+        self.queue.put({'func': requests.put,
+                        'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
+                        'params': {'type': 'internal'},
+                        'json': {'from': self.me, 'to': self.pid,
+                                 'msg': {'step': step, 'data': data}}})
         return {'reply': 'message sent to partner'}

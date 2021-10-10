@@ -1,10 +1,6 @@
 from enum import Enum, auto
 from datetime import datetime
 import hashlib
-from threading import Thread
-import time
-from redis import Redis
-import json
 
 
 class ProtocolStep(Enum):
@@ -18,22 +14,41 @@ class ProtocolStep(Enum):
 
 class Protocol:
     def __init__(self, storage, contract_name, me, partners, logger):
-        self.storage = storage
-        if 'parameters' not in self.storage:
-            self.storage['parameters'] = {'view': 0,
-                                          'last_index': 0,
-                                          'next_index': 0,
-                                          'low_mark': 0,
-                                          'checkpoint': 100,
-                                          'high_mark': 199}
-        self.parameters = self.storage['parameters']
+        self.db_storage = storage
+        self.storage = {}
+        for key in storage:
+            self.storage[key] = storage[key].get_dict()
+        if 'parameters' in self.storage:
+            self.parameters = self.storage['parameters']
+        else:
+            self.parameters = {'view': 0,
+                               'last_index': 0,
+                               'next_index': 0,
+                               'low_mark': 0,
+                               'checkpoint': 100,
+                               'high_mark': 199}
         self.contract_name = contract_name
         self.me = me
-        self.partners = partners
         self.logger = logger
+        self.partners = partners
         self.names = [partner.pid for partner in self.partners]
         self.names.append(self.me)
         self.order = sorted(range(len(self.names)), key=lambda k: self.names[k])
+        self.switcher = {ProtocolStep.REQUEST: self.receive_request,
+                         ProtocolStep.PRE_PREPARE: self.receive_pre_prepare,
+                         ProtocolStep.PREPARE: self.receive_prepare,
+                         ProtocolStep.COMMIT: self.receive_commit,
+                         ProtocolStep.CHECKPOINT: self.receive_checkpoint}
+
+    def update_partners(self, partners):
+        self.partners = partners
+        self.names = [partner.pid for partner in self.partners]
+        self.names.append(self.me)
+        self.order = sorted(range(len(self.names)), key=lambda k: self.names[k])
+
+    def close(self):
+        self.storage['parameters'] = self.parameters
+        self.db_storage.store(self.storage)
 
     def leader_is_me(self):
         return self.names[self.order[self.parameters['view']]] == self.me
@@ -49,20 +64,24 @@ class Protocol:
         return data['d']
 
     def receive_request(self, data):
-        self.store_request(data)
+        reply = self.store_request(data)
         if self.leader_is_me():
             self.send_pre_prepare(data['d'])
+        return reply
 
     def store_request(self, data):
-        record = self.storage[data['d']]
-        if record.exists() and record['step'] == ProtocolStep.PRE_PREPARE.name:
+        record = self.storage.get(data['d'])
+        if record and record.get('step') == ProtocolStep.PRE_PREPARE.name:
             step = ProtocolStep.PREPARE
         else:
             step = ProtocolStep.REQUEST
-        self.storage[data['d']] = {'record': data['o'],
-                                   'timestamp': data['t'],
-                                   'client': data['c'],
-                                   'step': step.name}
+        if not record:
+            self.storage[data['d']] = {}
+        self.storage[data['d']].update({'record': data['o'],
+                                        'timestamp': data['t'],
+                                        'client': data['c'],
+                                        'step': step.name})
+        return self.send_phase(data['d'], ProtocolStep.PREPARE) if step is ProtocolStep.PREPARE else False
 
     def send_pre_prepare(self, hash_code):
         index = self.parameters['next_index']
@@ -89,18 +108,20 @@ class Protocol:
 
     def store_pre_prepare(self, data):
         self.storage[str(data['n'])] = {'hash': data['d']}
-        record = self.storage[data['d']]
-        if record.exists() and record['step'] == ProtocolStep.REQUEST.name:
+        record = self.storage.get(data['d'])
+        if record and record.get('step') == ProtocolStep.REQUEST.name:
             step = ProtocolStep.PREPARE
         else:
             step = ProtocolStep.PRE_PREPARE
-        self.storage[data['d']] = {'view': data['v'],
-                                   'index': data['n'],
-                                   'step': step.name}
-        return self.send_phase(data['d'], ProtocolStep.PREPARE)
+        if not record:
+            self.storage[data['d']] = {}
+        self.storage[data['d']].update({'view': data['v'],
+                                        'index': data['n'],
+                                        'step': step.name})
+        return self.send_phase(data['d'], ProtocolStep.PREPARE) if step is ProtocolStep.PREPARE else False
 
     def send_phase(self, hash_code, phase):
-        record = self.storage[hash_code]
+        record = self.storage.get(hash_code)
         data = {'v': record['view'],
                 'n': record['index'],
                 'd': hash_code,
@@ -130,17 +151,20 @@ class Protocol:
         return self.store_phase(data, ProtocolStep.COMMIT)
 
     def store_phase(self, data, phase):
-        record = self.storage[data['d']]
-        if not record.exists() or phase.name not in record:
+        record = self.storage.get(data['d'])
+        if not record or phase.name not in record:
             collection = []
         else:
             collection = record[phase.name]
         collection.append(data)
-        self.storage[data['d']] = {phase.name: collection}
+        if not record:
+            self.storage[data['d']] = {}
+        self.storage[data['d']].update({phase.name: collection})
         return self.check_phase(data['d'], phase)
 
     def check_phase(self, hash_code, phase):
-        record = self.storage[hash_code]
+        reply = False
+        record = self.storage.get(hash_code)
         collection = []
         if phase.name in record:
             collection = record[phase.name]
@@ -153,13 +177,12 @@ class Protocol:
                     names.add(item['i'])
             if len(names) * 3 > len(self.order) * 2:
                 if phase is ProtocolStep.PREPARE:
-                    self.storage[hash_code] = {'step': ProtocolStep.COMMIT.name}
-                    return self.send_phase(hash_code, ProtocolStep.COMMIT)
+                    self.storage[hash_code]['step'] = ProtocolStep.COMMIT.name
+                    reply = self.send_phase(hash_code, ProtocolStep.COMMIT)
                 if phase is ProtocolStep.COMMIT:
-                    self.storage[hash_code] = {'step': ProtocolStep.DONE.name}
-                    return True
-        # just for readability. I am not supposed to be here
-        return False
+                    self.storage[hash_code]['step'] = ProtocolStep.DONE.name
+                    reply = True
+        return reply
 
     def send_checkpoint(self):
         checkpoint = self.parameters['checkpoint']
@@ -194,7 +217,7 @@ class Protocol:
 
     def store_checkpoint(self, data):
         key = 'checkpoint_' + data['n']
-        collection = self.storage[key]
+        collection = self.storage[key].get_dict()
         if not collection:
             collection = []
         collection.append(data)
@@ -251,20 +274,17 @@ class Protocol:
                     if stored_hash != hash_code:
                         del self.storage[stored_hash]
                 else:
-                    self.storage[str(last_index)] = {'hash': hash_code}
-                self.storage[hash_code] = {'step': ProtocolStep.DONE.name,
-                                           'request': records[hash_code]}
+                    self.storage[str(last_index)].update({'hash': hash_code})
+                self.storage[hash_code].update({'step': ProtocolStep.DONE.name,
+                                                'request': records[hash_code]})
 
     def record_message(self):
-        params_dict = self.parameters.get_dict()
-        params_dict['last_index'] += 1
-        params_dict['next_index'] +=1
-        if params_dict['last_index'] > params_dict['checkpoint']:
-            params_dict['low_mark'] += 100
-            params_dict['checkpoint'] += 100
-            params_dict['high_mark'] += 100
-        self.parameters.set_dict(params_dict)
-        pass
+        self.parameters['last_index'] += 1
+        self.parameters['next_index'] +=1
+        if self.parameters['last_index'] > self.parameters['checkpoint']:
+            self.parameters['low_mark'] += 100
+            self.parameters['checkpoint'] += 100
+            self.parameters['high_mark'] += 100
 
     def handle_message(self, record, initiate):
         self.logger.info(self.me + ' ' + str(record))
@@ -283,19 +303,14 @@ class Protocol:
             message = record['message']['msg']
             step = ProtocolStep[message['step']]
             data = message['data']
-            switcher = {ProtocolStep.REQUEST: self.receive_request,
-                        ProtocolStep.PRE_PREPARE: self.receive_pre_prepare,
-                        ProtocolStep.PREPARE: self.receive_prepare,
-                        ProtocolStep.COMMIT: self.receive_commit,
-                        ProtocolStep.CHECKPOINT: self.receive_checkpoint}
-            receiver = switcher[step]
+            receiver = self.switcher[step]
             if receiver(data):
                 reply = []
                 last_index = self.parameters['last_index']
                 while str(last_index) in self.storage:
                     hash_code = self.storage[str(last_index)]['hash']
-                    request = self.storage[hash_code]
-                    if request.exists() and 'step' in request and request['step'] == ProtocolStep.DONE.name:
+                    request = self.storage.get(hash_code)
+                    if request and 'step' in request and request['step'] == ProtocolStep.DONE.name:
                         reply.append(request['record'])
                         last_index += 1
                         self.parameters['last_index'] = last_index

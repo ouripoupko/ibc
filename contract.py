@@ -4,7 +4,7 @@ from protocol import Protocol
 
 
 class Contract:
-    def __init__(self, contract_doc, name, code, me, logger):
+    def __init__(self, contract_doc, name, code, me, logger, queue):
         # the database
         self.contract_doc = contract_doc
         # the contract
@@ -13,6 +13,7 @@ class Contract:
         self.code = code
         self.me = me
         self.logger = logger
+        self.queue = queue
         self.members = []
         self.methods = []
         self.obj = None
@@ -21,12 +22,16 @@ class Contract:
         self.partners = []
         self.partners_db = self.contract_doc.get_sub_collection('pda_partners')
         for key in self.partners_db:
-            self.partners.append(Partner(self.partners_db[key]['address'], key, me))
+            self.partners.append(Partner(self.partners_db[key]['address'], key, me, self.queue))
         # consensus protocols
         self.protocol_storage = self.contract_doc.get_sub_collection('pda_protocols')
+        self.protocol = Protocol(self.protocol_storage, self.name, self.me, self.partners, self.logger)
 
     def __repr__(self):
         return self.name
+
+    def close(self):
+        self.protocol.close()
 
     def handle_off_chain(self, method):
         print("decorator state is running")
@@ -69,20 +74,22 @@ class Contract:
 
     def connect(self, address, pid, me, my_address, welcome):
         if pid != me:
-            partner = Partner(address, pid, me)
+            partner = Partner(address, pid, me, self.queue)
             self.partners.append(partner)
             self.partners_db[pid] = {'address': address}
+            self.protocol.update_partners(self.partners)
             if welcome:
                 partner.welcome(self.name, my_address)
 
     def consent(self, record, initiate, direct):
         # if initiate:
         #     return [partner.pid for partner in self.partners]
-        protocol = Protocol(self.protocol_storage, self.name, self.me, self.partners, self.logger)
         if not self.partners or direct:
-            protocol.record_message()
-            return True
-        return protocol.handle_message(record, initiate)
+            self.protocol.record_message()
+            reply = True
+        else:
+            reply = self.protocol.handle_message(record, initiate)
+        return reply
 
     def get_info(self):
         values = [list(iter(getattr(self.obj, attribute))) for attribute in self.members]

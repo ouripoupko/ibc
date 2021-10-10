@@ -46,6 +46,13 @@ class Collection:
     def __len__(self):
         pass
 
+    def store(self, collection):
+        for key in collection:
+            collection[key]['_id'] = key
+        self.collection.delete_many({})
+        self.collection.insert_many(collection.values())
+        print('finished to update protocol db')
+
     def append(self, item):
         result = self.collection.insert_one(item)
         return str(result.inserted_id)

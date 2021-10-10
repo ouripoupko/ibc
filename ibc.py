@@ -19,8 +19,6 @@ app.logger.handlers = gunicorn_logger.handlers
 app.logger.setLevel(logging.ERROR)
 logger = app.logger
 
-start = None
-
 
 class IBC:
     def __init__(self, identity):
@@ -32,7 +30,10 @@ class IBC:
         self.state = State(identity_doc, logger) if identity_doc.exists() else None
         self.ledger = BlockChain(identity_doc, logger) if identity_doc.exists() else None
 
-    def __del__(self):
+    def close(self):
+        if self.state:
+            self.state.close()
+        print('going to disconnect the db')
         self.storage_bridge.disconnect()
 
     def commit(self, command, record, *args, **kwargs):
@@ -41,9 +42,6 @@ class IBC:
         return reply
 
     def handle_record(self, record, internal, direct=False, post_consent=False):
-        global start
-        # print('handle_record ' + str((time.time()-start)*1000))
-
         db = Redis(host='localhost', port=6379, db=0)
         # mutex per identity
         if not direct:
@@ -95,7 +93,7 @@ class IBC:
                             # a partner is reporting consensus protocol
                             original_records = contract.consent(record, False, False)
                             for original in original_records:
-                                self.handle_record(original, False, direct=True, post_consent = True)
+                                self.handle_record(original, False, direct=True, post_consent=True)
                             reply = {'reply': 'consensus protocol'}
                     elif record_type == 'POST':
                         if message.get('code'):
@@ -122,14 +120,15 @@ class IBC:
                                 reply = log[message['msg']['index']]
                             elif 'welcome' in message['msg']:
                                 # a partner notifies success on join request
-                                partner = Partner(message['msg']['welcome'], message['msg']['pid'], self.identity)
+                                partner = Partner(message['msg']['welcome'], message['msg']['pid'],
+                                                  self.identity, self.state.queue)
                                 records = partner.get_log(contract_name)
                                 for key in sorted(records.keys()):
                                     self.handle_record(records[key], False, direct=True)
                                 reply = {'reply': 'thank you partner'}
                         else:  # this is the initiator of the join request
                             # a client requests a join
-                            partner = Partner(message['address'], message['pid'], self.identity)
+                            partner = Partner(message['address'], message['pid'], self.identity, self.state.queue)
                             partner.connect(contract_name, self.my_address)
                             reply = {'reply': 'join request sent'}
             else:
@@ -139,6 +138,9 @@ class IBC:
             if record_type == "POST":
                 # a client adds an identity
                 self.agents[self.identity] = {'public_key': ''}
+                identity_doc = self.agents[self.identity]
+                self.state = State(identity_doc, logger)
+                self.ledger = BlockChain(identity_doc, logger)
                 reply = [agent for agent in self.agents]
         else:
             # a client asks for a list of identities
@@ -166,6 +168,9 @@ def view():  # pragma: no cover
 #    return Response(content, mimetype="text/html")
 
 
+ibc = None
+
+
 # Create a URL route in our application for contracts
 @app.route('/ibc/app', methods=['GET', 'POST', 'PUT', 'DELETE'],
            defaults={'identity': '', 'contract': '', 'method': ''})
@@ -175,11 +180,8 @@ def view():  # pragma: no cover
            defaults={'method': ''})
 @app.route('/ibc/app/<identity>/<contract>/<method>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def ibc_handler(identity, contract, method):
-    global start
-    start = time.time()
     msg = request.get_json()
     internal = request.args.get('type') == 'internal'
-
     record = {'type': request.method,
               'contract': contract,
               'method': method,
@@ -187,9 +189,17 @@ def ibc_handler(identity, contract, method):
     logger.debug(record)
     if not internal:
         record['caller'] = identity
-    ibc = IBC(identity)
-    response = jsonify(ibc.handle_record(record, internal))
-    del ibc
+    if isinstance(ibc, dict):
+        if identity in ibc:
+            this_ibc = ibc[identity]
+        else:
+            this_ibc = IBC(identity)
+            ibc[identity] = this_ibc
+    else:
+        this_ibc = IBC(identity)
+    response = jsonify(this_ibc.handle_record(record, internal))
+    if not isinstance(ibc, dict):
+        this_ibc.close()
     response.headers.add('Access-Control-Allow-Origin', '*')
     logger.debug(response.get_json())
     return response
@@ -230,8 +240,10 @@ class LoggingMiddleware(object):
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
     logger = logging.getLogger('werkzeug')
-    logger.setLevel(logging.ERROR)
+    logger.setLevel(logging.INFO)
     port = sys.argv[1]
 #    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     print(port)
+    # turning ibc from None to empty dict triggers memory cache when using flask directly, without gunicorn
+    ibc = {}
     app.run(host='0.0.0.0', port=port, use_reloader=False)  #, threaded=False)
