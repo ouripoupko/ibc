@@ -1,26 +1,27 @@
 import requests
 import time
+from os import listdir
 
-n = 10
-one_server = False
+servers = ['http://' + f + '/' for f in listdir('../var/')]
 
-for index in range(n):
-    requests.post(f'http://localhost:{5001+(0 if one_server else index)}/ibc/app/agent_{str(index).zfill(5)}')
+for index, address in enumerate(servers):
+    requests.post(f'{address}ibc/app/agent_{str(index).zfill(5)}')
 
 f = open('deliberation.py', 'r')
-requests.post(f'http://localhost:5001/ibc/app/agent_{str(0).zfill(5)}/deliberation',
-              json={'pid': f'agent_{str(0).zfill(5)}', 'address': 'http://localhost:5001/', 'code': f.read()})
+requests.post(f'{servers[0]}ibc/app/agent_00000/deliberation',
+              json={'pid': 'agent_00000', 'address': servers[0], 'code': f.read()})
 f.close()
 
-for index in range(1, n):
-    url = f'http://localhost:{5001+(0 if one_server else index)}/ibc/app/agent_{str(index).zfill(5)}/deliberation'
-    json = {'pid': f'agent_{str(0).zfill(5)}', 'address': f'http://localhost:5001/'}
+for index in range(1,len(servers)):
+    address = servers[index]
+    url = f'{address}ibc/app/agent_{str(index).zfill(5)}/deliberation'
+    json = {'pid': 'agent_00000', 'address': servers[0]}
     requests.post(url, json=json)
     time.sleep(2+index/3)
 
 for index in range(50):
-    agent = index % 10
-    requests.put(f'http://localhost:{5001+(0 if one_server else agent)}/ibc/app/agent_{str(agent).zfill(5)}/deliberation/create_statement',
+    agent = index % len(servers)
+    requests.put(f'{servers[agent]}ibc/app/agent_{str(agent).zfill(5)}/deliberation/create_statement',
                  json={'name': 'create_statement',
                        'values': {'parents': [],
                                   'text': f'statement_{str(index).zfill(3)}',

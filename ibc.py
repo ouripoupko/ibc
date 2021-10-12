@@ -18,12 +18,15 @@ gunicorn_logger = logging.getLogger('gunicorn.error')
 app.logger.handlers = gunicorn_logger.handlers
 app.logger.setLevel(logging.ERROR)
 logger = app.logger
-
+port = None
+mongo_port = 27017
+redis_port = 6379
 
 class IBC:
     def __init__(self, identity):
         self.my_address = os.getenv('MY_ADDRESS')
-        self.storage_bridge = DBBridge(logger).connect()
+        print(self.my_address)
+        self.storage_bridge = DBBridge(logger).connect(mongo_port)
         self.agents = self.storage_bridge.get_root_collection()
         self.identity = identity
         identity_doc = self.agents[identity]
@@ -39,10 +42,11 @@ class IBC:
     def commit(self, command, record, *args, **kwargs):
         self.ledger.log(record)
         reply = command(*args, **kwargs)
+        logger.warning(record)
         return reply
 
     def handle_record(self, record, internal, direct=False, post_consent=False):
-        db = Redis(host='localhost', port=6379, db=0)
+        db = Redis(host='localhost', port=redis_port, db=0)
         # mutex per identity
         if not direct:
             attempts = 0
@@ -209,7 +213,7 @@ def ibc_handler(identity, contract, method):
 def stream(identity, contract_name):
 
     def event_stream():
-        db = Redis(host='localhost', port=6379, db=0)
+        db = Redis(host='localhost', port=redis_port, db=0)
         channel = db.pubsub()
         channel.subscribe(identity+contract_name)
         while True:
@@ -239,11 +243,16 @@ class LoggingMiddleware(object):
 
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
-    logger = logging.getLogger('werkzeug')
-    logger.setLevel(logging.INFO)
     port = sys.argv[1]
+    mongo_port = sys.argv[2]
+    redis_port = sys.argv[3]
+    logging.basicConfig(filename=f'/mnt/ramdisk/poupko/{port}/log/ibc/ibc.log',
+                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
+    logger = logging.getLogger('werkzeug')
+    logger.setLevel(logging.WARNING)
 #    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
-    print(port)
+    print(port, mongo_port, redis_port)
     # turning ibc from None to empty dict triggers memory cache when using flask directly, without gunicorn
     ibc = {}
     app.run(host='0.0.0.0', port=port, use_reloader=False)  #, threaded=False)

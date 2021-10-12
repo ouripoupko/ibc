@@ -7,8 +7,8 @@ class DBBridge:
         self.connection = None
         self.logger = logger
 
-    def connect(self):
-        self.connection = MongoClient()
+    def connect(self, port):
+        self.connection = MongoClient(port=int(port))
         return self
 
     def disconnect(self):
