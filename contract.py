@@ -85,7 +85,7 @@ class Contract:
         # if initiate:
         #     return [partner.pid for partner in self.partners]
         if not self.partners or direct:
-            self.protocol.record_message()
+            self.protocol.record_message(record, direct)
             reply = True
         else:
             reply = self.protocol.handle_message(record, initiate)

@@ -22,6 +22,7 @@ port = None
 mongo_port = 27017
 redis_port = 6379
 
+
 class IBC:
     def __init__(self, identity):
         self.my_address = os.getenv('MY_ADDRESS')
@@ -130,6 +131,7 @@ class IBC:
                                 for key in sorted(records.keys()):
                                     self.handle_record(records[key], False, direct=True)
                                 reply = {'reply': 'thank you partner'}
+                                db.publish(self.identity + contract_name, 'True')
                         else:  # this is the initiator of the join request
                             # a client requests a join
                             partner = Partner(message['address'], message['pid'], self.identity, self.state.queue)
@@ -190,7 +192,7 @@ def ibc_handler(identity, contract, method):
               'contract': contract,
               'method': method,
               'message': msg}
-    logger.debug(record)
+    logger.info(record)
     if not internal:
         record['caller'] = identity
     if isinstance(ibc, dict):
@@ -244,13 +246,17 @@ class LoggingMiddleware(object):
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
     port = sys.argv[1]
-    mongo_port = sys.argv[2]
-    redis_port = sys.argv[3]
-    logging.basicConfig(filename=f'/mnt/ramdisk/poupko/{port}/log/ibc/ibc.log',
-                        format='%(asctime)s %(levelname)-8s %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
+    if len(sys.argv) > 3:
+        mongo_port = sys.argv[2]
+        redis_port = sys.argv[3]
+    kwargs = {'format':'%(asctime)s %(levelname)-8s %(message)s',
+              'datefmt':'%Y-%m-%d %H:%M:%S'}
+    if len(sys.argv) > 4:
+        kwargs['filename'] = sys.argv[4]
+    logging.basicConfig(**kwargs)
+
     logger = logging.getLogger('werkzeug')
-    logger.setLevel(logging.WARNING)
+    logger.setLevel(logging.ERROR)
 #    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     print(port, mongo_port, redis_port)
     # turning ibc from None to empty dict triggers memory cache when using flask directly, without gunicorn

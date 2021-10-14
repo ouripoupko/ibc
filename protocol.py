@@ -26,7 +26,8 @@ class Protocol:
                                'next_index': 0,
                                'low_mark': 0,
                                'checkpoint': 100,
-                               'high_mark': 199}
+                               'high_mark': 199,
+                               'block': []}
         self.contract_name = contract_name
         self.me = me
         self.logger = logger
@@ -70,25 +71,37 @@ class Protocol:
         return reply
 
     def store_request(self, data):
-        record = self.storage.get(data['d'])
-        if record and record.get('step') == ProtocolStep.PRE_PREPARE.name:
-            step = ProtocolStep.PREPARE
-        else:
-            step = ProtocolStep.REQUEST
-        if not record:
-            self.storage[data['d']] = {}
-        self.storage[data['d']].update({'record': data['o'],
-                                        'timestamp': data['t'],
-                                        'client': data['c'],
-                                        'step': step.name})
-        return self.send_phase(data['d'], ProtocolStep.PREPARE) if step is ProtocolStep.PREPARE else False
+        all_exist = False
+        if data['d'] in self.storage:
+            block_code = self.storage[data['d']]
+            block = self.storage[block_code]['block']
+            all_exist = True
+            for key in block:
+                if key == data['d']:
+                    continue
+                if isinstance(self.storage[key], str):
+                    all_exist = False
+                    break
+            if all_exist:
+                self.storage[block_code]['step'] = ProtocolStep.PREPARE.name
+        self.storage[data['d']] = {'record': data['o'],
+                                   'timestamp': data['t'],
+                                   'client': data['c']}
+        return self.send_phase(block_code, ProtocolStep.PREPARE) if all_exist else False
 
     def send_pre_prepare(self, hash_code):
+        if hash_code:
+            self.parameters['block'].append(hash_code)
         index = self.parameters['next_index']
+        if index - self.parameters['last_index'] > 5 and len(self.parameters['block']) < 1000:
+            return
         self.parameters['next_index'] = index+1
+        block_code = hashlib.sha256(str(self.parameters['block']).encode('utf-8')).hexdigest()
         data = {'v': self.parameters['view'],
                 'n': index,
-                'd': hash_code}
+                'd': block_code,
+                'l': self.parameters['block']}
+        self.parameters['block'] = []
         for partner in self.partners:
             partner.consent(self.contract_name, ProtocolStep.PRE_PREPARE.name, data)
         self.store_pre_prepare(data)
@@ -108,16 +121,19 @@ class Protocol:
 
     def store_pre_prepare(self, data):
         self.storage[str(data['n'])] = {'hash': data['d']}
-        record = self.storage.get(data['d'])
-        if record and record.get('step') == ProtocolStep.REQUEST.name:
-            step = ProtocolStep.PREPARE
-        else:
-            step = ProtocolStep.PRE_PREPARE
-        if not record:
+        block = data['l']
+        all_exist = True
+        for key in block:
+            if key not in self.storage:
+                all_exist = False
+                self.storage[key] = data['d']
+        step = ProtocolStep.PREPARE if all_exist else ProtocolStep.PRE_PREPARE
+        if data['d'] not in self.storage:
             self.storage[data['d']] = {}
         self.storage[data['d']].update({'view': data['v'],
                                         'index': data['n'],
-                                        'step': step.name})
+                                        'step': step.name,
+                                        'block': block})
         return self.send_phase(data['d'], ProtocolStep.PREPARE) if step is ProtocolStep.PREPARE else False
 
     def send_phase(self, hash_code, phase):
@@ -168,6 +184,7 @@ class Protocol:
         collection = []
         if phase.name in record:
             collection = record[phase.name]
+        print(len(collection), len(self.order), record)
         if 'step' in record and record['step'] == phase.name and len(collection) * 3 > len(self.order) * 2:
             names = set()
             view = record['view']
@@ -182,30 +199,30 @@ class Protocol:
                 if phase is ProtocolStep.COMMIT:
                     self.storage[hash_code]['step'] = ProtocolStep.DONE.name
                     reply = True
+            print(self.storage[hash_code]['step'])
         return reply
 
     def send_checkpoint(self):
         checkpoint = self.parameters['checkpoint']
         low_mark = self.parameters['low_mark']
         high_mark = self.parameters['high_mark']
-        index = low_mark
         cumulative = ''
-        while index < checkpoint:
+        for index in range(low_mark, checkpoint):
             if str(index) in self.storage:
                 hash_code = self.storage[str(index)]['hash']
                 cumulative += hash_code
+                block = self.storage[hash_code].get('block', [])
+                for key in block:
+                    del self.storage[key]
                 del self.storage[hash_code]
                 del self.storage[str(index)]
         data = {'n': checkpoint,
                 'd': hashlib.sha256(str(cumulative).encode('utf-8')).hexdigest(),
                 'i': self.me}
-        self.store_request(data)
+        self.store_checkpoint(data)
         for partner in self.partners:
             partner.consent(self.contract_name, ProtocolStep.CHECKPOINT.name, data)
-        self.parameters['checkpoint'] = checkpoint + 100
         self.parameters['checkpoint_hash'] = data['d']
-        self.parameters['low_mark'] = low_mark+100
-        self.parameters['high_mark'] = high_mark+100
 
     def receive_checkpoint(self, data):
         if data['n'] < self.parameters['checkpoint']:
@@ -216,8 +233,8 @@ class Protocol:
         pass
 
     def store_checkpoint(self, data):
-        key = 'checkpoint_' + data['n']
-        collection = self.storage[key].get_dict()
+        key = f'checkpoint_{str(data["n"])}'
+        collection = self.storage.get(key)
         if not collection:
             collection = []
         collection.append(data)
@@ -234,6 +251,9 @@ class Protocol:
                             # me on track. can clean up checkpoint
                             del self.parameters['checkpoint_hash']
                             del self.storage[key]
+                            self.parameters['checkpoint'] += 100
+                            self.parameters['low_mark'] += 100
+                            self.parameters['high_mark'] += 100
                         else:
                             # something bad happened. me differ from majority
                             self.logger.ERROR('Holy Spirit!! I am corrupted!!')
@@ -243,6 +263,7 @@ class Protocol:
                             # me will get there soon
                             pass
                         else:
+                            self.logger.WARNING('I think it is bad that I am here')
                             # me need to catch up
                             majority = []
                             for item in collection:
@@ -278,9 +299,17 @@ class Protocol:
                 self.storage[hash_code].update({'step': ProtocolStep.DONE.name,
                                                 'request': records[hash_code]})
 
-    def record_message(self):
+    def record_message(self, record, direct):
+        index = self.parameters['next_index']
+        if direct:
+            hash_code = record['hash_code']
+        else:
+            hash_code = 'no need to hash'
+            record['hash_code'] = hash_code
+        self.storage[str(index)] = {'hash': hash_code}
+        self.storage[hash_code] = 'direct'
         self.parameters['last_index'] += 1
-        self.parameters['next_index'] +=1
+        self.parameters['next_index'] += 1
         if self.parameters['last_index'] > self.parameters['checkpoint']:
             self.parameters['low_mark'] += 100
             self.parameters['checkpoint'] += 100
@@ -309,11 +338,17 @@ class Protocol:
                 last_index = self.parameters['last_index']
                 while str(last_index) in self.storage:
                     hash_code = self.storage[str(last_index)]['hash']
-                    request = self.storage.get(hash_code)
-                    if request and 'step' in request and request['step'] == ProtocolStep.DONE.name:
-                        reply.append(request['record'])
+                    pre_prepare = self.storage.get(hash_code)
+                    if pre_prepare and 'step' in pre_prepare and pre_prepare['step'] == ProtocolStep.DONE.name:
+                        for key in pre_prepare['block']:
+                            request = self.storage[key]
+                            stored_record = request['record']
+                            stored_record['hash_code'] = key
+                            reply.append(stored_record)
                         last_index += 1
                         self.parameters['last_index'] = last_index
+                        if self.parameters['next_index'] - last_index < 4 and self.parameters['block']:
+                            self.send_pre_prepare(None)
                     else:
                         break
                 self.logger.info(self.me + ' leaving')

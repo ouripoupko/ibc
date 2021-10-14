@@ -6,3 +6,4 @@ requests==2.22.0
 testresources==2.0.0
 redis~=3.5.3
 setuptools~=51.1.2
+sseclient==0.0.27
