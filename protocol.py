@@ -184,7 +184,6 @@ class Protocol:
         collection = []
         if phase.name in record:
             collection = record[phase.name]
-        print(len(collection), len(self.order), record)
         if 'step' in record and record['step'] == phase.name and len(collection) * 3 > len(self.order) * 2:
             names = set()
             view = record['view']
@@ -199,7 +198,6 @@ class Protocol:
                 if phase is ProtocolStep.COMMIT:
                     self.storage[hash_code]['step'] = ProtocolStep.DONE.name
                     reply = True
-            print(self.storage[hash_code]['step'])
         return reply
 
     def send_checkpoint(self):
@@ -307,7 +305,7 @@ class Protocol:
             hash_code = 'no need to hash'
             record['hash_code'] = hash_code
         self.storage[str(index)] = {'hash': hash_code}
-        self.storage[hash_code] = 'direct'
+        self.storage[hash_code] = {'direct': 'direct'}
         self.parameters['last_index'] += 1
         self.parameters['next_index'] += 1
         if self.parameters['last_index'] > self.parameters['checkpoint']:
