@@ -208,9 +208,9 @@ class Protocol:
         for index in range(low_mark, checkpoint):
             if str(index) in self.storage:
                 hash_code = self.storage[str(index)]['hash']
-                cumulative += hash_code
                 block = self.storage[hash_code].get('block', [])
                 for key in block:
+                    cumulative += key
                     del self.storage[key]
                 del self.storage[hash_code]
                 del self.storage[str(index)]
@@ -304,8 +304,9 @@ class Protocol:
         else:
             hash_code = 'no need to hash'
             record['hash_code'] = hash_code
-        self.storage[str(index)] = {'hash': hash_code}
-        self.storage[hash_code] = {'direct': 'direct'}
+        self.storage[str(index)] = {'hash': str(index)+hash_code}
+        self.storage[str(index)+hash_code] = {'block': [hash_code]}
+        self.storage[hash_code] = {'dummy': 'for deletion'}
         self.parameters['last_index'] += 1
         self.parameters['next_index'] += 1
         if self.parameters['last_index'] > self.parameters['checkpoint']:
