@@ -39,6 +39,8 @@ class State:
         self.contracts[name].connect(msg['address'], msg['pid'], self.agent, my_address, welcome)
 
     def get(self, name):
+        if name not in self.storage:
+            return None
         self.storage_docs[name] = self.storage[name].get_dict()
         if name not in self.contracts:
             self.contracts[name] = Contract(self.storage[name], name, self.storage_docs[name]['code'],
