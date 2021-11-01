@@ -218,6 +218,7 @@ def stream(identity, contract_name):
         db = Redis(host='localhost', port=redis_port, db=0)
         channel = db.pubsub()
         channel.subscribe(identity+contract_name)
+        yield 'data: {}\n\n'.format('False')
         while True:
             message = channel.get_message(timeout=10)
             if message:
