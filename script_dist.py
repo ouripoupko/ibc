@@ -5,17 +5,19 @@ from sseclient import SSEClient
 from threading import Thread, Semaphore
 from random import randrange
 
-# servers = ['http://' + f + '/' for f in listdir('../var/')]
+servers = ['http://' + f + '/' for f in listdir('../var/instances/')]
 # servers = [f'http://localhost:{str(i)}/' for i in range(5001, 5005)]
-servers = ['http://localhost:5001/' for i in range(20)]
+# servers = ['http://localhost:5001/' for i in range(20)]
 contract = 'deliberation'
 transaction = 'create_statement'
+iterations = 100
 
 locks = [Semaphore(0) for s in servers]
 start = time()
 started = False
 counter = 0
 
+output = open('results.txt','w')
 
 def listener(agent_index, contract_index):
     global counter
@@ -25,10 +27,12 @@ def listener(agent_index, contract_index):
     locks[agent_index].release()
     for msg in messages:
         if msg.data == 'True':
-            print('a message received from the server', agent_index, counter, time()-start)
+            output.write(f'a message received from the server {agent_index} {counter} {time()-start}\n')
             locks[agent_index].release()
             if started:
                 counter += 1
+                if counter == iterations:
+                    output.close()
             else:
                 break
 
@@ -76,10 +80,10 @@ for index in range(len(servers)):
     Thread(target=listener, args=(index, index)).start()
     locks[index].acquire()
 
-print('starting to send transactions', time()-start)
+output.write(f'starting to send transactions {time()-start}\n')
 started = True
 
-for marker in range(100):
+for marker in range(iterations):
     my_index = marker % len(servers)
     his_index = community[my_index][randrange(0, 10)]
     my_address = f'{servers[my_index]}ibc/app/agent_{str(my_index).zfill(5)}'

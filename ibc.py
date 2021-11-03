@@ -26,7 +26,6 @@ redis_port = 6379
 class IBC:
     def __init__(self, identity):
         self.my_address = os.getenv('MY_ADDRESS')
-        print(self.my_address)
         self.storage_bridge = DBBridge(logger).connect(mongo_port)
         self.agents = self.storage_bridge.get_root_collection()
         self.identity = identity
@@ -37,7 +36,6 @@ class IBC:
     def close(self):
         if self.state:
             self.state.close()
-        print('going to disconnect the db')
         self.storage_bridge.disconnect()
 
     def commit(self, command, record, *args, **kwargs):
@@ -259,7 +257,6 @@ if __name__ == '__main__':
     logger = logging.getLogger('werkzeug')
     logger.setLevel(logging.ERROR)
 #    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
-    print(port, mongo_port, redis_port)
     # turning ibc from None to empty dict triggers memory cache when using flask directly, without gunicorn
     ibc = {}
     app.run(host='0.0.0.0', port=port, use_reloader=False)  #, threaded=False)

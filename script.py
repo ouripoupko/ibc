@@ -4,24 +4,32 @@ from os import listdir
 from sseclient import SSEClient
 from threading import Thread, Semaphore
 
-# servers = ['http://' + f + '/' for f in listdir('../var/')]
-servers = [f'http://localhost:{str(i)}/' for i in range(5001,5011)]
+servers = ['http://' + f + '/' for f in listdir('../var/instances/')]
+# servers = [f'http://localhost:{str(i)}/' for i in range(5001,5011)]
 contract = 'deliberation'
 transaction = 'create_statement'
+iterations = 100
 
 locks = [Semaphore(0) for s in servers]
 start = time()
 started = False
 
+output = open('results.txt','w')
 
 def listener(local_index):
+    counter = 0
     messages = SSEClient(f'{servers[local_index]}stream/agent_{str(local_index).zfill(5)}/{contract}')
     for msg in messages:
         if msg.data == 'True':
             if not started or local_index == 0:
-                print('a message received from the server', local_index, time()-start)
+                output.write(f'a message received from the server {local_index} {counter} {time()-start}\n')
+            if started:
+                counter += 1
             locks[local_index].release()
-
+            if counter == iterations:
+                if local_index == 0:
+                    output.close()
+                break
 
 for index in range(len(servers)):
     Thread(target=listener, args=(index,)).start()
@@ -40,12 +48,12 @@ for index in range(1, len(servers)):
     json = {'pid': 'agent_00000', 'address': servers[0]}
     requests.post(url, json=json)
     locks[index].acquire()
-    sleep(2)
+    sleep(2+index/100)
 
-print('starting to send transactions', time()-start)
+output.write(f'starting to send transactions {time()-start}\n')
 started = True
 
-for index in range(1500):
+for index in range(iterations):
     agent = index % len(servers)
     requests.put(f'{servers[agent]}ibc/app/agent_{str(agent).zfill(5)}/{contract}/{transaction}',
                  json={'name': transaction,
