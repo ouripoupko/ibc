@@ -112,6 +112,7 @@ class Document:
 
     def get_dict(self):
         reply = self.storage.collection.find_one({'_id': self.key})
+        del reply['_id']
         return reply
 
     def set_dict(self, value):
