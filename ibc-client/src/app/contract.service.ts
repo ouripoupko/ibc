@@ -66,6 +66,12 @@ export class ContractService {
 
   /** PUT **/
   callContract(agent: string, contract: string, method: string, args: Method): Observable<any> {
+    if(method.startsWith('get_')) {
+      return this.http.post<Contract>(`app/${agent}/${contract}/${method}`, args, this.httpOptions).pipe(
+        tap(_ => this.log(`called contract name=${contract} method=${method}`)),
+        catchError(this.handleError<any>('callContract'))
+      );
+    }
     return this.http.put<Contract>(`app/${agent}/${contract}/${method}`, args, this.httpOptions).pipe(
       tap(_ => this.log(`called contract name=${contract} method=${method}`)),
       catchError(this.handleError<any>('callContract'))
