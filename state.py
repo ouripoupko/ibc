@@ -4,13 +4,11 @@ from threading import Thread
 
 
 def sender(queue):
-    print('thread running')
     while True:
         item = queue.get()
         if isinstance(item, bool):
             break
         item['func'](item['url'], params=item['params'], json=item['json'])
-    print('thread stopping')
 
 
 class State:

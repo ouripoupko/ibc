@@ -190,9 +190,9 @@ def ibc_handler(identity, contract, method):
               'contract': contract,
               'method': method,
               'message': msg}
-    logger.info(record)
     if not internal:
         record['caller'] = identity
+    logger.warning(record)
     if isinstance(ibc, dict):
         if identity in ibc:
             this_ibc = ibc[identity]
@@ -205,7 +205,7 @@ def ibc_handler(identity, contract, method):
     if not isinstance(ibc, dict):
         this_ibc.close()
     response.headers.add('Access-Control-Allow-Origin', '*')
-    logger.debug(response.get_json())
+    logger.warning(response.get_json())
     return response
 
 
@@ -255,7 +255,7 @@ if __name__ == '__main__':
     logging.basicConfig(**kwargs)
 
     logger = logging.getLogger('werkzeug')
-    logger.setLevel(logging.ERROR)
+    logger.setLevel(logging.WARNING)
 #    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     # turning ibc from None to empty dict triggers memory cache when using flask directly, without gunicorn
     ibc = {}

@@ -1,4 +1,5 @@
 from pymongo import MongoClient
+from bson.objectid import ObjectId
 import uuid
 
 
@@ -34,7 +35,10 @@ class Collection:
         self.collection.update_one({'_id': key}, {'$set': value}, upsert=True)
 
     def __delitem__(self, key):
-        self.collection.delete_one({'_id': key})
+        if self.collection.find_one({'_id': key}):
+            self.collection.delete_one({'_id': key})
+        else:
+            self.collection.delete_one({'_id': ObjectId(key)})
 
     def __iter__(self):
         for doc in self.collection.find():
