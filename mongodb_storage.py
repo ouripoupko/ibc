@@ -48,7 +48,7 @@ class Collection:
         return self.collection.find_one({'_id': item}) is not None
 
     def __len__(self):
-        pass
+        return self.collection.count()
 
     def store(self, collection):
         for key in collection:
@@ -68,18 +68,26 @@ class Collection:
             result = list(self.collection.find().sort('_id', -1).limit(1))
         return result[0]['_id'] if result else None
 
-    def get(self, field, operator, value):
+    def get(self, field=None, operator=None, value=None):
         if operator == '>':
             return {item['_id']: item for item in list(self.collection.find({field: {'$gt': value}}))}
         elif operator == '==':
-            return {item['_id']: item for item in list(self.collection.find({field: value}))}
+            # return {item['_id']: item for item in list(self.collection.find({field: value}))}
+            return {str(item['_id']):
+                    {key: (str(value) if key == '_id' else value) for key, value in item.items()}
+                    for item in list(self.collection.find({field: value}))}
+        elif operator is None:
+            return {str(item['_id']):
+                    {key: (str(value) if key == '_id' else value) for key, value in item.items()}
+                    for item in list(self.collection.find())}
 
 
 class Document:
 
     def __init__(self, storage, key, parent=None):
         self.storage = storage
-        self.key = key
+        real_key = ObjectId(key) if ObjectId.is_valid(key) else key
+        self.key = real_key if real_key in self.storage else key
         self.parent = parent
 
     def __getitem__(self, key):

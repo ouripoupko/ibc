@@ -1,6 +1,8 @@
 from builtins import __build_class__
 from partner import Partner
 from protocol import Protocol
+import numpy as np
+from numpy.linalg import eig
 
 
 class Contract:
@@ -36,6 +38,14 @@ class Contract:
     def handle_off_chain(self, method):
         print("decorator state is running")
 
+    def eig(self, array):
+        npa = np.array(array)
+        npa = npa/npa.sum(axis=0)
+        w, v = eig(npa)
+        w.sort()
+        print(w[-2])
+        return w.tolist()
+
     def master(self):
         return self.caller
 
@@ -49,7 +59,8 @@ class Contract:
              {'__builtins__':
               {'__build_class__': __build_class__, '__name__': __name__,
                'str': str, 'int': int, 'list': list, 'range': range, 'dict': dict, 'len': len, 'master': self.master,
-               'Storage': self.get_storage, 'off_chain': self.handle_off_chain}}, empty_locals)
+               'Storage': self.get_storage, 'off_chain': self.handle_off_chain, 'eig': self.eig, 'print': print,
+               'set': set, 'enumerate': enumerate, 'abs': abs, 'sum': sum}}, empty_locals)
         class_object = list(empty_locals.values())[0]
         self.class_name = class_object.__name__
         self.obj = class_object()
@@ -93,5 +104,6 @@ class Contract:
 
     def get_info(self):
         values = [list(iter(getattr(self.obj, attribute))) for attribute in self.members]
+        values = [[str(val) for val in row] for row in values]
         return {'name': self.name, 'contract': self.class_name, 'code': self.code,
                 'methods': self.methods, 'members': self.members, 'values': values}

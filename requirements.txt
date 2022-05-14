@@ -8,3 +8,4 @@ testresources==2.0.0
 redis~=3.5.3
 setuptools~=51.1.2
 sseclient==0.0.27
+numpy~=1.20.1
