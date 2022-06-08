@@ -1,6 +1,4 @@
 from enum import Enum, auto
-from datetime import datetime
-import hashlib
 
 
 class ProtocolStep(Enum):
@@ -56,8 +54,8 @@ class Protocol:
 
     def send_request(self, record):
         data = {'o': record,
-                't': datetime.now().strftime('%Y%m%d%H%M%S%f'),
-                'd': hashlib.sha256(str(record).encode('utf-8')).hexdigest(),
+                't': record['timestamp'],
+                'd': record['hash_code'],
                 'c': self.me}
         self.store_request(data)
         for partner in self.partners:
@@ -297,13 +295,9 @@ class Protocol:
                 self.storage[hash_code].update({'step': ProtocolStep.DONE.name,
                                                 'request': records[hash_code]})
 
-    def record_message(self, record, direct):
+    def record_message(self, record):
         index = self.parameters['next_index']
-        if direct:
-            hash_code = record['hash_code']
-        else:
-            hash_code = 'no need to hash'
-            record['hash_code'] = hash_code
+        hash_code = record['hash_code']
         self.storage[str(index)] = {'hash': str(index)+hash_code}
         self.storage[str(index)+hash_code] = {'block': [hash_code]}
         self.storage[hash_code] = {'dummy': 'for deletion'}

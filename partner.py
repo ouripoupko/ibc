@@ -44,3 +44,10 @@ class Partner:
                         'json': {'from': self.me, 'to': self.pid,
                                  'msg': {'step': step, 'data': data}}})
         return {'reply': 'message sent to partner'}
+
+    def read(self, contract, method, arguments, values):
+        return requests.post(self.address + 'ibc/app/' + self.pid + '/' + contract + '/' + method,
+                             params={'type': 'agent_to_agent'},
+                             json={'name': method,
+                                   'arguments': arguments,
+                                   'values': values}).json()

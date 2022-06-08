@@ -27,8 +27,8 @@ class State:
         for contract in self.contracts.values():
             contract.close()
 
-    def add(self, name, message, my_address):
-        self.storage[name] = {'pid': message['pid'], 'code': message['code']}
+    def add(self, name, message, my_address, timestamp):
+        self.storage[name] = {'pid': message['pid'], 'timestamp': timestamp, 'code': message['code']}
         self.get(name)
         self.contracts[name].connect(message['address'], message['pid'], self.agent, my_address, False)
         return f"contract {name} added"
@@ -43,7 +43,7 @@ class State:
         if name not in self.contracts:
             self.contracts[name] = Contract(self.storage[name], name, self.storage_docs[name]['code'],
                                             self.agent, self.logger, self.queue)
-            self.contracts[name].run(self.storage_docs[name]['pid'])
+            self.contracts[name].run(self.storage_docs[name]['pid'], self.storage_docs[name]['timestamp'])
         return self.contracts[name]
 
     def trigger(self, msg):

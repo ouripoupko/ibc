@@ -3,6 +3,9 @@ import os
 import time
 import logging
 
+from datetime import datetime
+import hashlib
+
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
 from flask_cors import CORS
 from redis import Redis
@@ -41,13 +44,13 @@ class IBC:
     def commit(self, command, record, *args, **kwargs):
         self.ledger.log(record)
         reply = command(*args, **kwargs)
-        logger.warning(record)
+        logger.debug(record)
         return reply
 
-    def handle_record(self, record, internal, direct=False, post_consent=False):
+    def handle_record(self, record, internal, agent_to_agent, direct=False, post_consent=False):
         db = Redis(host='localhost', port=redis_port, db=0)
         # mutex per identity
-        if not direct:
+        if not direct and not agent_to_agent:
             attempts = 0
             while not db.setnx(self.identity, 'locked'):
                 time.sleep(0.01)
@@ -66,12 +69,16 @@ class IBC:
                     if record_type == 'PUT':
                         # a client is calling a method
                         contract = self.state.get(contract_name)
+                        if not post_consent and not direct:
+                            record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
+                            record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
                         if not contract:
                             reply = {'reply': 'contract not found'}
                         elif not post_consent and not contract.consent(record, True, direct):
                             reply = {'reply': 'consensus protocol started'}
                         else:
-                            reply = self.commit(contract.call, record, record['caller'], method, message)
+                            reply = self.commit(contract.call, record,
+                                                record['caller'], method, message, record['timestamp'])
                             db.publish(self.identity+contract_name, 'True')
                     elif record_type == 'POST':
                         # a client calls an off chain method
@@ -79,7 +86,7 @@ class IBC:
                         if not contract:
                             reply = {'reply': 'contract not found'}
                         else:
-                            reply = contract.call(record['caller'], method, message)
+                            reply = contract.call(record['caller'], method, message, None)
                 else:
                     if record_type == 'GET':
                         if internal:
@@ -96,16 +103,23 @@ class IBC:
                             # a partner is reporting consensus protocol
                             original_records = contract.consent(record, False, False)
                             for original in original_records:
-                                self.handle_record(original, False, direct=True, post_consent=True)
+                                self.handle_record(original, False, False, direct=True, post_consent=True)
                             reply = {'reply': 'consensus protocol'}
                     elif record_type == 'POST':
                         if message.get('code'):
                             # a client deploys a contract
-                            reply = self.commit(self.state.add, record, contract_name, message, self.my_address)
+                            if not direct:
+                                record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
+                                record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
+                            reply = self.commit(self.state.add, record,
+                                                contract_name, message, self.my_address, record['timestamp'])
                         elif internal or direct:
                             if 'address' in message['msg']:
                                 # a partner requests to join
                                 contract = self.state.get(contract_name)
+                                if not post_consent and not direct:
+                                    record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
+                                    record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
                                 if not contract:
                                     reply = {'reply': 'contract not found'}
                                 elif not post_consent and not contract.consent(record, True, direct):
@@ -127,7 +141,7 @@ class IBC:
                                                   self.identity, self.state.queue)
                                 records = partner.get_log(contract_name)
                                 for key in sorted(records.keys()):
-                                    self.handle_record(records[key], False, direct=True)
+                                    self.handle_record(records[key], False, False, direct=True)
                                 reply = {'reply': 'thank you partner'}
                                 db.publish(self.identity + contract_name, 'True')
                         else:  # this is the initiator of the join request
@@ -150,7 +164,7 @@ class IBC:
             # a client asks for a list of identities
             if record_type == 'GET':
                 reply = [agent for agent in self.agents]
-        if not direct:
+        if not direct and not agent_to_agent:
             db.delete(self.identity)
         return reply
 
@@ -186,6 +200,7 @@ ibc = None
 def ibc_handler(identity, contract, method):
     msg = request.get_json()
     internal = request.args.get('type') == 'internal'
+    agent_to_agent = request.args.get('type') == 'agent_to_agent'
     record = {'type': request.method,
               'contract': contract,
               'method': method,
@@ -201,7 +216,7 @@ def ibc_handler(identity, contract, method):
             ibc[identity] = this_ibc
     else:
         this_ibc = IBC(identity)
-    response = jsonify(this_ibc.handle_record(record, internal))
+    response = jsonify(this_ibc.handle_record(record, internal, agent_to_agent))
     if not isinstance(ibc, dict):
         this_ibc.close()
     response.headers.add('Access-Control-Allow-Origin', '*')

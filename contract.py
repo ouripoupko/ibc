@@ -3,6 +3,7 @@ from partner import Partner
 from protocol import Protocol
 import numpy as np
 from numpy.linalg import eig
+from datetime import datetime
 
 
 class Contract:
@@ -20,6 +21,7 @@ class Contract:
         self.methods = []
         self.obj = None
         self.caller = None
+        self.current_timestamp = None
         # the partners
         self.partners = []
         self.partners_db = self.contract_doc.get_sub_collection('pda_partners')
@@ -43,24 +45,37 @@ class Contract:
         npa = npa/npa.sum(axis=0)
         w, v = eig(npa)
         w.sort()
-        print(w[-2])
         return w.tolist()
 
     def master(self):
         return self.caller
 
+    def timestamp(self):
+        return self.current_timestamp
+
+    def elapsed_time(self, start, end):
+        delta = datetime.strptime(end, '%Y%m%d%H%M%S%f') - datetime.strptime(start, '%Y%m%d%H%M%S%f')
+        return delta.total_seconds()
+
     def get_storage(self, name):
         return self.contract_doc.get_sub_collection(f'contract_{name}')
 
-    def run(self, caller):
+    def read(self, address, agent, contract, method, arguments, values):
+        partner = Partner(address, agent, self.me, None)
+        return partner.read(contract, method, arguments, values)
+
+    def run(self, caller, timestamp):
         self.caller = caller
+        self.current_timestamp = timestamp
         empty_locals = {}
         exec(self.code,
              {'__builtins__':
               {'__build_class__': __build_class__, '__name__': __name__,
                'str': str, 'int': int, 'list': list, 'range': range, 'dict': dict, 'len': len, 'master': self.master,
-               'Storage': self.get_storage, 'off_chain': self.handle_off_chain, 'eig': self.eig, 'print': print,
-               'set': set, 'enumerate': enumerate, 'abs': abs, 'sum': sum}}, empty_locals)
+               'timestamp': self.timestamp, 'Storage': self.get_storage, 'off_chain': self.handle_off_chain,
+               'eig': self.eig, 'print': print, 'set': set, 'enumerate': enumerate, 'abs': abs, 'sum': sum,
+               'min': min, 'Read': self.read, 'elapsed_time': self.elapsed_time}},
+             empty_locals)
         class_object = list(empty_locals.values())[0]
         self.class_name = class_object.__name__
         self.obj = class_object()
@@ -74,8 +89,9 @@ class Contract:
                         for name in method_names]
         return "ready"
 
-    def call(self, caller, method, msg):
+    def call(self, caller, method, msg, timestamp):
         self.caller = caller
+        self.current_timestamp = timestamp
         m = getattr(self.obj, method)
         try:
             reply = m(**msg['values'])
@@ -96,7 +112,7 @@ class Contract:
         # if initiate:
         #     return [partner.pid for partner in self.partners]
         if not self.partners or direct:
-            self.protocol.record_message(record, direct)
+            self.protocol.record_message(record)
             reply = True
         else:
             reply = self.protocol.handle_message(record, initiate)
