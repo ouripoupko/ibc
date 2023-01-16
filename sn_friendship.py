@@ -8,4 +8,4 @@ class Friendship:
         pass
 
     def set_partner(self, partner, address):
-        pass
+        self.friends['second'] = {'name': master()}

@@ -1,9 +1,11 @@
 from builtins import __build_class__
 from partner import Partner
-from protocol import Protocol
+# from protocol import Protocol
+from nakamoto import Nakamoto
 import numpy as np
 from numpy.linalg import eig
 from datetime import datetime
+import hashlib
 
 
 class Contract:
@@ -29,7 +31,7 @@ class Contract:
             self.partners.append(Partner(self.partners_db[key]['address'], key, me, self.queue))
         # consensus protocols
         self.protocol_storage = self.contract_doc.get_sub_collection('pda_protocols')
-        self.protocol = Protocol(self.protocol_storage, self.name, self.me, self.partners, self.logger)
+        self.protocol = Nakamoto(self.protocol_storage, self.name, self.me, self.partners, self.logger)
 
     def __repr__(self):
         return self.name
@@ -53,6 +55,9 @@ class Contract:
     def timestamp(self):
         return self.current_timestamp
 
+    def hashcode(self, object):
+        return hashlib.sha256(str(object).encode('utf-8')).hexdigest()
+
     def elapsed_time(self, start, end):
         delta = datetime.strptime(end, '%Y%m%d%H%M%S%f') - datetime.strptime(start, '%Y%m%d%H%M%S%f')
         return delta.total_seconds()
@@ -74,7 +79,8 @@ class Contract:
                'str': str, 'int': int, 'list': list, 'range': range, 'dict': dict, 'len': len, 'master': self.master,
                'timestamp': self.timestamp, 'Storage': self.get_storage, 'off_chain': self.handle_off_chain,
                'eig': self.eig, 'print': print, 'set': set, 'enumerate': enumerate, 'abs': abs, 'sum': sum,
-               'min': min, 'Read': self.read, 'elapsed_time': self.elapsed_time}},
+               'min': min, 'Read': self.read, 'Write': self.read, 'elapsed_time': self.elapsed_time,
+               'hashcode': self.hashcode}},
              empty_locals)
         class_object = list(empty_locals.values())[0]
         self.class_name = class_object.__name__

@@ -27,11 +27,16 @@ class State:
         for contract in self.contracts.values():
             contract.close()
 
-    def add(self, name, message, my_address, timestamp):
-        self.storage[name] = {'pid': message['pid'], 'timestamp': timestamp, 'code': message['code']}
-        self.get(name)
-        self.contracts[name].connect(message['address'], message['pid'], self.agent, my_address, False)
-        return f"contract {name} added"
+    def add(self, message, my_address, timestamp):
+        name = message.get('name')
+        if name:
+            self.storage[name] = message
+            self.storage[name]['timestamp'] = timestamp
+            self.get(name)
+            self.contracts[name].connect(message['address'], message['pid'], self.agent, my_address, False)
+            return True
+        else:
+            return False
 
     def welcome(self, name, msg, my_address, welcome):
         self.contracts[name].connect(msg['address'], msg['pid'], self.agent, my_address, welcome)
@@ -57,4 +62,7 @@ class State:
             return {'reply': 'no such contract'}
 
     def get_contracts(self):
-        return [key for key in self.storage]
+        reply =  [{key: self.storage[name][key] for key in self.storage[name]
+                   if key in ['name', 'contract', 'code', 'protocol', 'default_app', 'pid', 'address']}
+                  for name in self.storage]
+        return reply

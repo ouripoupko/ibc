@@ -35,6 +35,12 @@ class IBC:
         identity_doc = self.agents[identity]
         self.state = State(identity_doc, logger) if identity_doc.exists() else None
         self.ledger = BlockChain(identity_doc, logger) if identity_doc.exists() else None
+        self.db = Redis(host='localhost', port=redis_port, db=0)
+        self.actions = {'GET': {'is_exist_agent': self.is_exist_agent,
+                                'get_contracts': self.get_contracts},
+                        'PUT': {'register_agent': self.register_agent,
+                                'deploy_contract': self.deploy_contract},
+                        'POST': {}}
 
     def close(self):
         if self.state:
@@ -47,12 +53,35 @@ class IBC:
         logger.debug(record)
         return reply
 
+    def is_exist_agent(self, record):
+        return self.state is not None
+
+    def register_agent(self, record):
+        # a client adds an identity
+        self.agents[self.identity] = {'public_key': ''}
+        identity_doc = self.agents[self.identity]
+        self.state = State(identity_doc, logger)
+        self.ledger = BlockChain(identity_doc, logger)
+        return True
+
+    def get_contracts(self, record):
+        # a client asks for a list of contracts
+        return self.state.get_contracts()
+
+    def deploy_contract(self, record, direct = False):
+        # a client deploys a contract
+        if not direct:
+            record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
+            record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
+        self.db.publish(self.identity, "")
+        return self.commit(self.state.add, record,
+                           record['message'], self.my_address, record['timestamp'])
+
     def handle_record(self, record, internal, agent_to_agent, direct=False, post_consent=False):
-        db = Redis(host='localhost', port=redis_port, db=0)
         # mutex per identity
         if not direct and not agent_to_agent:
             attempts = 0
-            while not db.setnx(self.identity, 'locked'):
+            while not self.db.setnx(self.identity, 'locked'):
                 time.sleep(0.01)
                 attempts += 1
                 if attempts > 10000:  # 100 seconds
@@ -62,110 +91,99 @@ class IBC:
         contract_name = record['contract']
         method = record['method']
         message = record['message']
-        reply = {}
-        if self.state:
-            if contract_name:
-                if method:
-                    if record_type == 'PUT':
-                        # a client is calling a method
-                        contract = self.state.get(contract_name)
-                        if not post_consent and not direct:
-                            record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
-                            record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
-                        if not contract:
-                            reply = {'reply': 'contract not found'}
-                        elif not post_consent and not contract.consent(record, True, direct):
-                            reply = {'reply': 'consensus protocol started'}
-                        else:
-                            reply = self.commit(contract.call, record,
-                                                record['caller'], method, message, record['timestamp'])
-                            db.publish(self.identity+contract_name, 'True')
-                    elif record_type == 'POST':
-                        # a client calls an off chain method
-                        contract = self.state.get(contract_name)
-                        if not contract:
-                            reply = {'reply': 'contract not found'}
-                        else:
-                            reply = contract.call(record['caller'], method, message, None)
-                else:
-                    if record_type == 'GET':
-                        if internal:
-                            # a partner asks for a ledger history
-                            reply = self.ledger.get(contract_name)
-                        else:
-                            # a client asks for a contract state
-                            reply = self.state.get_state(contract_name)
-                    elif record_type == 'PUT':
-                        contract = self.state.get(contract_name)
-                        if not contract:
-                            reply = {'reply': 'contract not found'}
-                        elif internal:
-                            # a partner is reporting consensus protocol
-                            original_records = contract.consent(record, False, False)
-                            for original in original_records:
-                                self.handle_record(original, False, False, direct=True, post_consent=True)
-                            reply = {'reply': 'consensus protocol'}
-                    elif record_type == 'POST':
-                        if message.get('code'):
-                            # a client deploys a contract
-                            if not direct:
+        action = self.actions[record['type']].get(record['action'])
+        if action:
+            reply = action(record)
+        else:
+            reply = {}
+            if self.state:
+                if contract_name:
+                    if method:
+                        if record_type == 'PUT':
+                            # a client is calling a method
+                            contract = self.state.get(contract_name)
+                            if not post_consent and not direct:
                                 record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
                                 record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
-                            reply = self.commit(self.state.add, record,
-                                                contract_name, message, self.my_address, record['timestamp'])
-                        elif internal or direct:
-                            if 'address' in message['msg']:
-                                # a partner requests to join
-                                contract = self.state.get(contract_name)
-                                if not post_consent and not direct:
-                                    record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
-                                    record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
-                                if not contract:
-                                    reply = {'reply': 'contract not found'}
-                                elif not post_consent and not contract.consent(record, True, direct):
-                                    reply = {'reply': 'consensus protocol started'}
-                                else:
-                                    reply = self.commit(self.state.welcome,
-                                                        record,
-                                                        contract_name,
-                                                        message['msg'],
-                                                        self.my_address,
-                                                        message['to'] == self.identity)
-                            elif 'index' in message['msg']:
-                                # a partner asks to catchup on specific record
-                                log = self.ledger.get(contract_name)
-                                reply = log[message['msg']['index']]
-                            elif 'welcome' in message['msg']:
-                                # a partner notifies success on join request
-                                partner = Partner(message['msg']['welcome'], message['msg']['pid'],
-                                                  self.identity, self.state.queue)
-                                records = partner.get_log(contract_name)
-                                for key in sorted(records.keys()):
-                                    self.handle_record(records[key], False, False, direct=True)
-                                reply = {'reply': 'thank you partner'}
-                                db.publish(self.identity + contract_name, 'True')
-                        else:  # this is the initiator of the join request
-                            # a client requests a join
-                            partner = Partner(message['address'], message['pid'], self.identity, self.state.queue)
-                            partner.connect(contract_name, self.my_address)
-                            reply = {'reply': 'join request sent'}
-            else:
-                # a client asks for a list of contracts
-                reply = [{'name': name} for name in self.state.get_contracts()]
-        elif self.identity:
-            if record_type == "POST":
-                # a client adds an identity
-                self.agents[self.identity] = {'public_key': ''}
-                identity_doc = self.agents[self.identity]
-                self.state = State(identity_doc, logger)
-                self.ledger = BlockChain(identity_doc, logger)
-                reply = [agent for agent in self.agents]
-        else:
-            # a client asks for a list of identities
-            if record_type == 'GET':
-                reply = [agent for agent in self.agents]
+                            if not contract:
+                                reply = {'reply': 'contract not found'}
+                            elif not post_consent and not contract.consent(record, True, direct):
+                                reply = {'reply': 'consensus protocol started'}
+                            else:
+                                reply = self.commit(contract.call, record,
+                                                    record['caller'], method, message, record['timestamp'])
+                                self.db.publish(self.identity, contract_name)
+                        elif record_type == 'POST':
+                            # a client calls an off chain method
+                            contract = self.state.get(contract_name)
+                            if not contract:
+                                reply = {'reply': 'contract not found'}
+                            else:
+                                reply = contract.call(record['caller'], method, message, None)
+                    else:
+                        if record_type == 'GET':
+                            if internal:
+                                # a partner asks for a ledger history
+                                reply = self.ledger.get(contract_name)
+                            else:
+                                # a client asks for a contract state
+                                reply = self.state.get_state(contract_name)
+                        elif record_type == 'PUT':
+                            contract = self.state.get(contract_name)
+                            if not contract:
+                                reply = {'reply': 'contract not found'}
+                            elif internal:
+                                # a partner is reporting consensus protocol
+                                original_records = contract.consent(record, False, False)
+                                for original in original_records:
+                                    self.handle_record(original, False, False, direct=True, post_consent=True)
+                                reply = {'reply': 'consensus protocol'}
+                        elif record_type == 'POST':
+                            if message.get('code'):
+                                logger.error('please report action')
+                            elif internal or direct:
+                                if 'address' in message['msg']:
+                                    # a partner requests to join
+                                    contract = self.state.get(contract_name)
+                                    if not post_consent and not direct:
+                                        record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
+                                        record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
+                                    if not contract:
+                                        reply = {'reply': 'contract not found'}
+                                    elif not post_consent and not contract.consent(record, True, direct):
+                                        reply = {'reply': 'consensus protocol started'}
+                                    else:
+                                        reply = self.commit(self.state.welcome,
+                                                            record,
+                                                            contract_name,
+                                                            message['msg'],
+                                                            self.my_address,
+                                                            message['to'] == self.identity)
+                                        self.db.publish(self.identity, contract_name)
+                                elif 'index' in message['msg']:
+                                    # a partner asks to catchup on specific record
+                                    log = self.ledger.get(contract_name)
+                                    reply = log[message['msg']['index']]
+                                elif 'welcome' in message['msg']:
+                                    # a partner notifies success on join request
+                                    partner = Partner(message['msg']['welcome'], message['msg']['pid'],
+                                                      self.identity, self.state.queue)
+                                    records = partner.get_log(contract_name)
+                                    for key in sorted(records.keys()):
+                                        self.handle_record(records[key], False, False, direct=True)
+                                    reply = {'reply': 'thank you partner'}
+                                    self.db.publish(self.identity, contract_name)
+                            else:  # this is the initiator of the join request
+                                # a client requests a join
+                                partner = Partner(message['address'], message['pid'], self.identity, self.state.queue)
+                                partner.connect(contract_name, self.my_address)
+                                reply = {'reply': 'join request sent'}
+            elif not self.identity:
+                # a client asks for a list of identities
+                if record_type == 'GET':
+                    reply = [agent for agent in self.agents]
         if not direct and not agent_to_agent:
-            db.delete(self.identity)
+            self.db.delete(self.identity)
         return reply
 
 
@@ -198,16 +216,18 @@ ibc = None
            defaults={'method': ''})
 @app.route('/ibc/app/<identity>/<contract>/<method>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def ibc_handler(identity, contract, method):
-    msg = request.get_json()
+    msg = request.get_json() if request.is_json else None
     internal = request.args.get('type') == 'internal'
     agent_to_agent = request.args.get('type') == 'agent_to_agent'
+    action = request.args.get('action')
     record = {'type': request.method,
+              'action': action,
               'contract': contract,
               'method': method,
               'message': msg}
     if not internal:
         record['caller'] = identity
-    logger.warning(record)
+    logger.info(record)
     if isinstance(ibc, dict):
         if identity in ibc:
             this_ibc = ibc[identity]
@@ -220,17 +240,18 @@ def ibc_handler(identity, contract, method):
     if not isinstance(ibc, dict):
         this_ibc.close()
     response.headers.add('Access-Control-Allow-Origin', '*')
-    logger.warning(response.get_json())
+    logger.info(response.get_json())
     return response
 
 
+@app.route('/stream/<identity>', defaults={'contract_name': ''})
 @app.route('/stream/<identity>/<contract_name>')
 def stream(identity, contract_name):
 
     def event_stream():
         db = Redis(host='localhost', port=redis_port, db=0)
         channel = db.pubsub()
-        channel.subscribe(identity+contract_name)
+        channel.subscribe(identity)
         yield 'data: {}\n\n'.format('False')
         while True:
             message = channel.get_message(timeout=10)
@@ -259,19 +280,19 @@ class LoggingMiddleware(object):
 
 # If we're running in stand alone mode, run the application
 if __name__ == '__main__':
-    port = sys.argv[1]
+    port = int(sys.argv[1])
     if len(sys.argv) > 3:
         mongo_port = sys.argv[2]
         redis_port = sys.argv[3]
-    kwargs = {'format':'%(asctime)s %(levelname)-8s %(message)s',
-              'datefmt':'%Y-%m-%d %H:%M:%S'}
+    conf_kwargs = {'format': '%(asctime)s %(levelname)-8s %(message)s',
+                   'datefmt': '%Y-%m-%d %H:%M:%S'}
     if len(sys.argv) > 4:
-        kwargs['filename'] = sys.argv[4]
-    logging.basicConfig(**kwargs)
+        conf_kwargs['filename'] = sys.argv[4]
+    logging.basicConfig(**conf_kwargs)
 
     logger = logging.getLogger('werkzeug')
-    logger.setLevel(logging.WARNING)
+    logger.setLevel(logging.DEBUG)
 #    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     # turning ibc from None to empty dict triggers memory cache when using flask directly, without gunicorn
     ibc = {}
-    app.run(host='0.0.0.0', port=port, use_reloader=False)  #, threaded=False)
+    app.run(host='0.0.0.0', port=port, use_reloader=False)  # , threaded=False)
