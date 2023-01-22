@@ -36,11 +36,12 @@ class IBC:
         self.state = State(identity_doc, logger) if identity_doc.exists() else None
         self.ledger = BlockChain(identity_doc, logger) if identity_doc.exists() else None
         self.db = Redis(host='localhost', port=redis_port, db=0)
-        self.actions = {'GET': {'is_exist_agent': self.is_exist_agent,
+        self.actions = {'GET':  {'is_exist_agent': self.is_exist_agent,
                                 'get_contracts': self.get_contracts},
-                        'PUT': {'register_agent': self.register_agent,
-                                'deploy_contract': self.deploy_contract},
-                        'POST': {}}
+                        'PUT':  {'register_agent': self.register_agent,
+                                'deploy_contract': self.deploy_contract,
+                                'contract_read': self.contract_read},
+                        'POST': {'contract_write': self.contract_write}}
 
     def close(self):
         if self.state:
@@ -77,6 +78,34 @@ class IBC:
         return self.commit(self.state.add, record,
                            record['message'], self.my_address, record['timestamp'])
 
+    def contract_read(self, record, direct = False):
+        # a client calls an off chain method
+        contract = self.state.get(record['contract'])
+        if not contract:
+            return {'reply': 'contract not found'}
+        else:
+            return contract.call(record['caller'], record['method'], record['message'], None)
+
+    def contract_write(self, record, direct=False):
+        # a client is calling a method
+        contract = self.state.get(record['contract'])
+        if not direct:
+            record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
+            record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
+        if not contract:
+            return {'reply': 'contract not found'}
+        return self.handle_consent_records(contract.consent(record, True, direct))
+
+    def handle_consent_records(self, records):
+        if not records:
+            return {'reply': 'consensus protocol started'}
+        for record in records:
+            contract = self.state.get(record['contract'])
+            if record['action'] == 'contract_write':
+                reply = self.commit(contract.call, record,
+                                    record['caller'], record['method'], record['message'], record['timestamp'])
+                self.db.publish(self.identity, record['contract'])
+
     def handle_record(self, record, internal, agent_to_agent, direct=False, post_consent=False):
         # mutex per identity
         if not direct and not agent_to_agent:
@@ -99,27 +128,7 @@ class IBC:
             if self.state:
                 if contract_name:
                     if method:
-                        if record_type == 'PUT':
-                            # a client is calling a method
-                            contract = self.state.get(contract_name)
-                            if not post_consent and not direct:
-                                record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
-                                record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
-                            if not contract:
-                                reply = {'reply': 'contract not found'}
-                            elif not post_consent and not contract.consent(record, True, direct):
-                                reply = {'reply': 'consensus protocol started'}
-                            else:
-                                reply = self.commit(contract.call, record,
-                                                    record['caller'], method, message, record['timestamp'])
-                                self.db.publish(self.identity, contract_name)
-                        elif record_type == 'POST':
-                            # a client calls an off chain method
-                            contract = self.state.get(contract_name)
-                            if not contract:
-                                reply = {'reply': 'contract not found'}
-                            else:
-                                reply = contract.call(record['caller'], method, message, None)
+                        logger.error('should not be here anymore')
                     else:
                         if record_type == 'GET':
                             if internal:
@@ -257,6 +266,9 @@ def stream(identity, contract_name):
             message = channel.get_message(timeout=10)
             if message:
                 if message.get('type') == 'message':
+                    modified_contract = message.get('data')
+                    if contract_name and contract_name != modified_contract:
+                        continue
                     yield 'data: {}\n\n'.format('True')
             else:
                 yield 'data: {}\n\n'.format('False')
