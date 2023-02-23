@@ -27,42 +27,41 @@ class State:
         for contract in self.contracts.values():
             contract.close()
 
-    def add(self, message, my_address, timestamp):
-        name = message.get('name')
-        if name:
-            self.storage[name] = message
-            self.storage[name]['timestamp'] = timestamp
-            self.get(name)
-            self.contracts[name].connect(message['address'], message['pid'], self.agent, my_address, False)
-            return True
-        else:
-            return False
+    def add(self, message, my_address, timestamp, hash_code):
+        message['id'] = hash_code
+        self.storage[hash_code] = message
+        self.storage[hash_code]['timestamp'] = timestamp
+        self.get(hash_code)
+        self.contracts[hash_code].connect(message['address'], message['pid'], self.agent, my_address, False)
+        return True
 
-    def welcome(self, name, msg, my_address, welcome):
-        self.contracts[name].connect(msg['address'], msg['pid'], self.agent, my_address, welcome)
+    def welcome(self, hash_code, msg, my_address, welcome):
+        self.contracts[hash_code].connect(msg['address'], msg['pid'], self.agent, my_address, welcome)
 
-    def get(self, name):
-        if name not in self.storage:
+    def get(self, hash_code):
+        if hash_code not in self.storage:
             return None
-        self.storage_docs[name] = self.storage[name].get_dict()
-        if name not in self.contracts:
-            self.contracts[name] = Contract(self.storage[name], name, self.storage_docs[name]['code'],
-                                            self.agent, self.logger, self.queue)
-            self.contracts[name].run(self.storage_docs[name]['pid'], self.storage_docs[name]['timestamp'])
-        return self.contracts[name]
+        self.storage_docs[hash_code] = self.storage[hash_code].get_dict()
+        if hash_code not in self.contracts:
+            self.contracts[hash_code] = Contract(self.storage[hash_code], hash_code,
+                                                 self.storage_docs[hash_code]['code'],
+                                                 self.agent, self.logger, self.queue)
+            self.contracts[hash_code].run(self.storage_docs[hash_code]['pid'],
+                                          self.storage_docs[hash_code]['timestamp'])
+        return self.contracts[hash_code]
 
     def trigger(self, msg):
         pass
 
-    def get_state(self, name):
-        contract = self.get(name)
+    def get_state(self, hash_code):
+        contract = self.get(hash_code)
         if contract:
             return contract.get_info()
         else:
             return {'reply': 'no such contract'}
 
     def get_contracts(self):
-        reply =  [{key: self.storage[name][key] for key in self.storage[name]
-                   if key in ['name', 'contract', 'code', 'protocol', 'default_app', 'pid', 'address']}
-                  for name in self.storage]
+        reply =  [{key: self.storage[hash_code][key] for key in self.storage[hash_code]
+                   if key in ['id', 'name', 'contract', 'code', 'protocol', 'default_app', 'pid', 'address']}
+                  for hash_code in self.storage]
         return reply

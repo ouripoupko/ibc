@@ -14,7 +14,7 @@ class Partner:
     def connect(self, contract, my_address):
         self.queue.put({'func': requests.post,
                         'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
-                        'params': {'type': 'internal'},
+                        'params': {'action': 'a2a_connect'},
                         'json': {'from': self.me, 'to': self.pid,
                                  'msg': {'address': my_address, 'pid': self.me}}})
         return {'reply': 'message sent to partner'}
@@ -22,7 +22,7 @@ class Partner:
     def welcome(self, contract, my_address):
         self.queue.put({'func': requests.post,
                         'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
-                        'params': {'type': 'internal'},
+                        'params': {'action': 'a2a_welcome'},
                         'json': {'from': self.me, 'to': self.pid,
                                  'msg': {'welcome': my_address, 'pid': self.me}}})
         return {'reply': 'message sent to partner'}
@@ -40,7 +40,7 @@ class Partner:
     def consent(self, contract, step, data):
         self.queue.put({'func': requests.put,
                         'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
-                        'params': {'type': 'internal'},
+                        'params': {'action': 'a2a_consent'},
                         'json': {'from': self.me, 'to': self.pid,
                                  'msg': {'step': step, 'data': data}}})
         return {'reply': 'message sent to partner'}

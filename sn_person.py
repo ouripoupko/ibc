@@ -2,16 +2,9 @@ class Person:
 
     def __init__(self):
         self.posts = Storage('posts')
-        self.settings = Storage('settings')
         self.friends = Storage('friends')
         self.requests = Storage('requests')
         self.groups = Storage('groups')
-
-    def register_profile(self, contract):
-        self.settings['profile']['contract'] = contract
-
-    def get_profile_contract(self):
-        return self.settings['profile']['contract'] if 'profile' in self.settings else None
 
     def create_post(self, text):
         self.posts.append({'owner': master(), 'time': timestamp(), 'text': text})

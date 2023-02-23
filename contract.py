@@ -1,6 +1,6 @@
 from builtins import __build_class__
 from partner import Partner
-# from protocol import Protocol
+from pbft import PBFT
 from nakamoto import Nakamoto
 import numpy as np
 from numpy.linalg import eig
@@ -9,11 +9,11 @@ import hashlib
 
 
 class Contract:
-    def __init__(self, contract_doc, name, code, me, logger, queue):
+    def __init__(self, contract_doc, hash_code, code, me, logger, queue):
         # the database
         self.contract_doc = contract_doc
         # the contract
-        self.name = name
+        self.hash_code = hash_code
         self.class_name = ''
         self.code = code
         self.me = me
@@ -31,10 +31,14 @@ class Contract:
             self.partners.append(Partner(self.partners_db[key]['address'], key, me, self.queue))
         # consensus protocols
         self.protocol_storage = self.contract_doc.get_sub_collection('pda_protocols')
-        self.protocol = Nakamoto(self.protocol_storage, self.name, self.me, self.partners, self.logger)
+        self.protocol = None
+        if self.contract_doc['protocol'] == 'POW':
+            self.protocol = Nakamoto(self.protocol_storage, self.hash_code, self.me, self.partners, self.logger)
+        elif self.contract_doc['protocol'] == 'BFT':
+            self.protocol = PBFT(self.protocol_storage, self.hash_code, self.me, self.partners, self.logger)
 
     def __repr__(self):
-        return self.name
+        return self.hash_code
 
     def close(self):
         self.protocol.close()
@@ -98,11 +102,15 @@ class Contract:
     def call(self, caller, method, msg, timestamp):
         self.caller = caller
         self.current_timestamp = timestamp
-        m = getattr(self.obj, method)
-        try:
-            reply = m(**msg['values'])
-        except (TypeError, Exception) as e:
-            return str(e)
+        m = getattr(self.obj, method, None)
+        if m:
+            try:
+                reply = m(**msg['values'])
+            except (TypeError, Exception) as e:
+                return str(e)
+        else:
+            if method == 'get_profile_contract':
+                reply = self.contract_doc['profile']
         return reply
 
     def connect(self, address, pid, me, my_address, welcome):
@@ -112,7 +120,7 @@ class Contract:
             self.partners_db[pid] = {'address': address}
             self.protocol.update_partners(self.partners)
             if welcome:
-                partner.welcome(self.name, my_address)
+                partner.welcome(self.hash_code, my_address)
 
     def consent(self, record, initiate, direct):
         # if initiate:
@@ -127,7 +135,7 @@ class Contract:
     def get_info(self):
         values = [list(iter(getattr(self.obj, attribute))) for attribute in self.members]
         values = [[str(val) for val in row] for row in values]
-        return {'name': self.name, 'contract': self.class_name, 'code': self.code,
+        return {'name': self.hash_code, 'contract': self.class_name, 'code': self.code,
                 'methods': self.methods, 'members': self.members, 'values': values}
 
 

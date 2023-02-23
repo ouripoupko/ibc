@@ -19,6 +19,10 @@ class Nakamoto:
         self.names.append(self.me)
         self.order = sorted(range(len(self.names)), key=lambda k: self.names[k])
 
+    def close(self):
+        self.storage['parameters'] = self.parameters
+        self.db_storage.store(self.storage)
+
     def update_partners(self, partners):
         self.partners = partners
         self.names = [partner.pid for partner in self.partners]

@@ -11,7 +11,7 @@ class ProtocolStep(Enum):
     CHECKPOINT = auto()
 
 
-class Protocol:
+class PBFT:
     def __init__(self, storage, contract_name, me, partners, logger):
         self.db_storage = storage
         self.storage = {}
@@ -297,6 +297,8 @@ class Protocol:
                                                 'request': records[hash_code]})
 
     def record_message(self, record):
+        if self.me[0] == 'z':
+            self.logger.warning('record: ' + str(record))
         index = self.parameters['next_index']
         hash_code = record['hash_code']
         self.storage[str(index)] = {'hash': str(index)+hash_code}
@@ -310,7 +312,11 @@ class Protocol:
             self.parameters['high_mark'] += 100
 
     def handle_message(self, record, initiate):
-        self.logger.info(self.me + ' ' + str(record))
+        self.logger.debug(self.me + ' ' + str(record))
+        if 'message' in record and 'msg' in record['message'] and record['message']['msg']['step'] == 'COMMIT' and record['message']['msg']['data']['n'] == 2:
+            pass
+        if self.me[0] == 'z':
+            self.logger.warning('handle: ' + str(record))
         # check if checkpoint was crossed
         if self.parameters['last_index'] > self.parameters['checkpoint'] and \
                 'checkpoint_hash' not in self.parameters:
