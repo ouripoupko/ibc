@@ -5,6 +5,7 @@ import logging
 
 from datetime import datetime
 import hashlib
+import json
 
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
 from flask_cors import CORS
@@ -26,15 +27,18 @@ mongo_port = 27017
 redis_port = 6379
 
 
+class Waiter:
+    pass
+
+
 class IBC:
     def __init__(self, identity):
-        self.my_address = os.getenv('MY_ADDRESS')
         self.storage_bridge = DBBridge(logger).connect(mongo_port)
         self.agents = self.storage_bridge.get_root_collection()
         self.identity = identity
-        identity_doc = self.agents[identity]
-        self.state = State(identity_doc, logger) if identity_doc.exists() else None
-        self.ledger = BlockChain(identity_doc, logger) if identity_doc.exists() else None
+        self.identity_doc = self.agents[identity]
+        self.state = State(self.identity_doc, logger) if self.identity_doc.exists() else None
+        self.ledger = BlockChain(self.identity_doc, logger) if self.identity_doc.exists() else None
         self.db = Redis(host='localhost', port=redis_port, db=0)
         self.actions = {'GET':  {'is_exist_agent': self.is_exist_agent,
                                  'get_contracts': self.get_contracts},
@@ -45,7 +49,8 @@ class IBC:
                                  'a2a_welcome': self.a2a_welcome,
                                  'a2a_consent': self.a2a_consent},
                         'POST': {'contract_read': self.contract_read,
-                                 'contract_write': self.contract_write}}
+                                 'contract_write': self.contract_write,
+                                 'a2a_get_ledger': self.a2a_get_ledger}}
 
     def close(self):
         if self.state:
@@ -56,7 +61,6 @@ class IBC:
         self.ledger.log(record)
         reply = command(*args, **kwargs)
         self.db.publish(self.identity, record['contract'])
-        logger.debug(record)
         return reply
 
     def is_exist_agent(self, record, direct):
@@ -64,7 +68,7 @@ class IBC:
 
     def register_agent(self, record, direct):
         # a client adds an identity
-        self.agents[self.identity] = {'public_key': ''}
+        self.agents[self.identity] = {'address': os.getenv('MY_ADDRESS')}
         identity_doc = self.agents[self.identity]
         self.state = State(identity_doc, logger)
         self.ledger = BlockChain(identity_doc, logger)
@@ -81,13 +85,15 @@ class IBC:
             record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
             record['contract'] = record['hash_code']
         return self.commit(self.state.add, record,
-                           record['message'], self.my_address, record['timestamp'], record['hash_code'])
+                           record['message'], record['timestamp'], record['hash_code'])
 
     def join_contract(self, record, direct):
         message = record['message']
-        partner = Partner(message['address'], message['agent'], self.identity, self.state.queue)
-        partner.connect(message['contract'], self.my_address)
-        return {'reply': 'join request sent'}
+        record['hash_code'] = message['contract']
+        partner = Partner(message['address'], message['agent'],
+                          self.identity_doc['address'], self.identity, self.state.queue)
+        partner.connect(message['contract'], message['profile'])
+        return Waiter()
 
     def a2a_connect(self, record, direct):
         # a partner requests to join
@@ -97,21 +103,19 @@ class IBC:
             record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
         if not contract:
             return {'reply': 'contract not found'}
-        message = record['message']
-        commit_parameters = (self.state.welcome, record,
-                             record['contract'], message['msg'], self.my_address, message['to'] == self.identity)
-        return self.handle_consent_records(contract.consent(record, True, direct), commit_parameters)
+        return self.handle_consent_records(contract.consent(record, True, direct), True)
 
     def a2a_welcome(self, record, direct):
         # a partner notifies success on join request
         message = record['message']
         partner = Partner(message['msg']['welcome'], message['msg']['pid'],
-                          self.identity, self.state.queue)
-        records = partner.get_log(record['contract'])
+                          self.identity_doc['address'], self.identity, self.state.queue)
+        records = partner.get_ledger(record['contract'])
         for key in sorted(records.keys()):
-            self.handle_record(records[key], False, False, direct=True)
+            self.handle_record(records[key], True)
         self.db.publish(self.identity, record['contract'])
-        return {'reply': 'thank you partner'}
+        self.db.publish(record['contract'], json.dumps({'reply': 'join success'}))
+        return {}
 
     def contract_read(self, record, direct):
         # a client calls an off chain method
@@ -119,7 +123,7 @@ class IBC:
         if not contract:
             return {'reply': 'contract not found'}
         else:
-            return contract.call(record['caller'], record['method'], record['message'], None)
+            return contract.call(record['agent'], record['method'], record['message'], None)
 
     def contract_write(self, record, direct):
         # a client is calling a method
@@ -129,26 +133,40 @@ class IBC:
             record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
         if not contract:
             return {'reply': 'contract not found'}
-        commit_parameters = (contract.call, record,
-                            record['caller'], record['method'], record['message'], record['timestamp'])
-        return self.handle_consent_records(contract.consent(record, True, direct), commit_parameters)
+        return self.handle_consent_records(contract.consent(record, True, direct), True)
 
     def a2a_consent(self, record, direct):
         # a partner is reporting consensus protocol
         contract = self.state.get(record['contract'])
-        return self.handle_consent_records(contract.consent(record, False, False))
+        return self.handle_consent_records(contract.consent(record, False, False), False)
 
-    def handle_consent_records(self, records, commit_parameters):
-        if not records:
-            return {'reply': 'consensus protocol started'}
+    def a2a_get_ledger(self, record, direct):
+        # a partner asks for a ledger history
+        index = record['message']['msg']['index']
+        reply = self.ledger.get(record['contract'])
+        if index > 0:
+            reply = reply[index]
+        return reply
+
+    def handle_consent_records(self, records, immediate):
+        reply = Waiter()
         for record in records:
-            reply = ""
+            action = record['action']
             contract = self.state.get(record['contract'])
-            return self.commit(*commit_parameters)
+            if action == 'contract_write':
+                reply = self.commit(contract.call, record,
+                                   record['agent'], record['method'], record['message'], record['timestamp'])
+            if action == 'a2a_connect':
+                message = record['message']
+                reply = self.commit(self.state.join, record,
+                                   record['contract'], message['msg'], message['to'] == self.identity)
+            if not immediate:
+                self.db.publish(record['hash_code'], json.dumps(reply))
+        return reply if immediate else {}
 
-    def handle_record(self, record, internal, agent_to_agent, direct=False, post_consent=False):
+    def handle_record(self, record, direct=False):
         # mutex per identity
-        if not direct and not agent_to_agent:
+        if not direct:
             attempts = 0
             while not self.db.setnx(self.identity, 'locked'):
                 time.sleep(0.01)
@@ -156,48 +174,25 @@ class IBC:
                 if attempts > 10000:  # 100 seconds
                     return {'reply': 'timeout - could not lock mutex'}
 
-        record_type = record['type']
-        contract_name = record['contract']
-        method = record['method']
-        message = record['message']
         action = self.actions[record['type']].get(record['action'])
-        if action:
-            reply = action(record, direct)
-        else:
-            reply = {}
-            if self.state:
-                if contract_name:
-                    if method:
-                        logger.error('should not be here anymore')
-                    else:
-                        if record_type == 'GET':
-                            if internal:
-                                # a partner asks for a ledger history
-                                reply = self.ledger.get(contract_name)
-                            else:
-                                # a client asks for a contract state
-                                reply = self.state.get_state(contract_name)
-                        elif record_type == 'PUT':
-                            contract = self.state.get(contract_name)
-                            if not contract:
-                                reply = {'reply': 'contract not found'}
-                        elif record_type == 'POST':
-                            if message.get('code'):
-                                logger.error('please report action')
-                            elif internal or direct:
-                                if 'index' in message['msg']:
-                                    # a partner asks to catchup on specific record
-                                    log = self.ledger.get(contract_name)
-                                    reply = log[message['msg']['index']]
-                            else:  # this is the initiator of the join request
-                                # a client requests a join
-                                logger.error('please report action')
-            elif not self.identity:
-                # a client asks for a list of identities
-                if record_type == 'GET':
-                    reply = [agent for agent in self.agents]
-        if not direct and not agent_to_agent:
+        reply = action(record, direct)
+        if not direct:
             self.db.delete(self.identity)
+        if isinstance(reply, Waiter):
+            channel = self.db.pubsub()
+            if 'hash_code' not in record:
+                print('break here')
+            channel.subscribe(record['hash_code'])
+            while True:
+                message = channel.get_message(timeout=10)
+                if message:
+                    if message.get('type') == 'message':
+                        reply = json.loads(message.get('data'))
+                        logger.warning('successfully waited for consensus')
+                        break
+                else:
+                    reply = {'reply': 'Waited too long for consensus'}
+                    break
         return reply
 
 
@@ -231,17 +226,15 @@ ibc = None
 @app.route('/ibc/app/<identity>/<contract>/<method>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def ibc_handler(identity, contract, method):
     msg = request.get_json() if request.is_json else None
-    internal = request.args.get('type') == 'internal'
-    agent_to_agent = request.args.get('type') == 'agent_to_agent'
     action = request.args.get('action')
     record = {'type': request.method,
               'action': action,
               'contract': contract,
               'method': method,
-              'message': msg}
-    if not internal:
-        record['caller'] = identity
-    logger.info(record)
+              'message': msg,
+              'agent': identity}
+    logger.info('-------------------------------------------------------')
+    logger.warning(record)
     if isinstance(ibc, dict):
         if identity in ibc:
             this_ibc = ibc[identity]
@@ -250,11 +243,11 @@ def ibc_handler(identity, contract, method):
             ibc[identity] = this_ibc
     else:
         this_ibc = IBC(identity)
-    response = jsonify(this_ibc.handle_record(record, internal, agent_to_agent))
+    response = jsonify(this_ibc.handle_record(record))
     if not isinstance(ibc, dict):
         this_ibc.close()
     response.headers.add('Access-Control-Allow-Origin', '*')
-    logger.info(response.get_json())
+    logger.warning(response.get_json())
     return response
 
 

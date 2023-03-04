@@ -2,40 +2,37 @@ import requests
 
 
 class Partner:
-    def __init__(self, address, pid, me, queue):
+    def __init__(self, address, pid, my_address, me, queue):
         self.address = address
         self.pid = pid
+        self.my_address = my_address
         self.me = me
         self.queue = queue
 
     def __repr__(self):
         return str({'class': 'Partner', 'id': self.pid, 'address': self.address})
 
-    def connect(self, contract, my_address):
-        self.queue.put({'func': requests.post,
+    def connect(self, contract, profile):
+        self.queue.put({'func': requests.put,
                         'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
                         'params': {'action': 'a2a_connect'},
                         'json': {'from': self.me, 'to': self.pid,
-                                 'msg': {'address': my_address, 'pid': self.me}}})
+                                 'msg': {'address': self.my_address, 'pid': self.me, 'profile': profile}}})
         return {'reply': 'message sent to partner'}
 
-    def welcome(self, contract, my_address):
-        self.queue.put({'func': requests.post,
+    def welcome(self, contract):
+        self.queue.put({'func': requests.put,
                         'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
                         'params': {'action': 'a2a_welcome'},
                         'json': {'from': self.me, 'to': self.pid,
-                                 'msg': {'welcome': my_address, 'pid': self.me}}})
+                                 'msg': {'welcome': self.my_address, 'pid': self.me}}})
         return {'reply': 'message sent to partner'}
 
-    def get_log(self, contract):
-        return requests.get(self.address + 'ibc/app/' + self.pid + '/' + contract,
-                            params={'type': 'internal'}).json()
-
-    def catchup(self, contract, my_index):
+    def get_ledger(self, contract, index = 0):
         return requests.post(self.address + 'ibc/app/' + self.pid + '/' + contract,
-                             params={'type': 'internal'},
+                             params={'action': 'a2a_get_ledger'},
                              json={'from': self.me, 'to': self.pid,
-                                   'msg': {'index': my_index, 'pid': self.me}}).json()
+                                   'msg': {'index': index, 'pid': self.me}}).json()
 
     def consent(self, contract, step, data):
         self.queue.put({'func': requests.put,
@@ -44,10 +41,3 @@ class Partner:
                         'json': {'from': self.me, 'to': self.pid,
                                  'msg': {'step': step, 'data': data}}})
         return {'reply': 'message sent to partner'}
-
-    def read(self, contract, method, arguments, values):
-        return requests.post(self.address + 'ibc/app/' + self.pid + '/' + contract + '/' + method,
-                             params={'type': 'agent_to_agent'},
-                             json={'name': method,
-                                   'arguments': arguments,
-                                   'values': values}).json()

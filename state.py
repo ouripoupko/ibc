@@ -15,6 +15,7 @@ class State:
 
     def __init__(self, agent_doc, logger):
         self.agent = agent_doc.get_key()
+        self.address = agent_doc['address']
         self.storage = agent_doc.get_sub_collection('contracts')
         self.storage_docs = {}
         self.contracts = {}
@@ -27,16 +28,16 @@ class State:
         for contract in self.contracts.values():
             contract.close()
 
-    def add(self, message, my_address, timestamp, hash_code):
+    def add(self, message, timestamp, hash_code):
         message['id'] = hash_code
         self.storage[hash_code] = message
         self.storage[hash_code]['timestamp'] = timestamp
         self.get(hash_code)
-        self.contracts[hash_code].connect(message['address'], message['pid'], self.agent, my_address, False)
-        return True
+        self.contracts[hash_code].connect(message['address'], message['pid'], message.get('profile',''), False)
+        return hash_code
 
-    def welcome(self, hash_code, msg, my_address, welcome):
-        self.contracts[hash_code].connect(msg['address'], msg['pid'], self.agent, my_address, welcome)
+    def join(self, hash_code, msg, welcome):
+        return self.contracts[hash_code].connect(msg['address'], msg['pid'], msg['profile'], welcome)
 
     def get(self, hash_code):
         if hash_code not in self.storage:
@@ -45,7 +46,7 @@ class State:
         if hash_code not in self.contracts:
             self.contracts[hash_code] = Contract(self.storage[hash_code], hash_code,
                                                  self.storage_docs[hash_code]['code'],
-                                                 self.agent, self.logger, self.queue)
+                                                 self.agent, self.address, self.logger, self.queue)
             self.contracts[hash_code].run(self.storage_docs[hash_code]['pid'],
                                           self.storage_docs[hash_code]['timestamp'])
         return self.contracts[hash_code]

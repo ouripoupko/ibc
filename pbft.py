@@ -278,7 +278,7 @@ class PBFT:
         for partner_name in self.parameters['majority']:
             if partner_name in self.names:
                 partner_index = self.names.index(partner_name)
-                partner_record = self.partners[partner_index].catchup(last_index)
+                partner_record = self.partners[partner_index].get_ledger(last_index)
                 partner_hash = hashlib.sha256(str(partner_record).encode('utf-8')).hexdigest()
                 if partner_hash in hash_count:
                     hash_count[partner_hash] += 1
@@ -297,8 +297,7 @@ class PBFT:
                                                 'request': records[hash_code]})
 
     def record_message(self, record):
-        if self.me[0] == 'z':
-            self.logger.warning('record: ' + str(record))
+        self.logger.debug('record: ' + str(record))
         index = self.parameters['next_index']
         hash_code = record['hash_code']
         self.storage[str(index)] = {'hash': str(index)+hash_code}
@@ -315,8 +314,6 @@ class PBFT:
         self.logger.debug(self.me + ' ' + str(record))
         if 'message' in record and 'msg' in record['message'] and record['message']['msg']['step'] == 'COMMIT' and record['message']['msg']['data']['n'] == 2:
             pass
-        if self.me[0] == 'z':
-            self.logger.warning('handle: ' + str(record))
         # check if checkpoint was crossed
         if self.parameters['last_index'] > self.parameters['checkpoint'] and \
                 'checkpoint_hash' not in self.parameters:
@@ -351,9 +348,7 @@ class PBFT:
                             self.send_pre_prepare(None)
                     else:
                         break
-                self.logger.info(self.me + ' leaving')
                 return reply
-        self.logger.info(self.me + ' leaving')
         return []
 
 # should wait on time out from request to change view

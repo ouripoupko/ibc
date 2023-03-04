@@ -9,7 +9,7 @@ import hashlib
 
 
 class Contract:
-    def __init__(self, contract_doc, hash_code, code, me, logger, queue):
+    def __init__(self, contract_doc, hash_code, code, me, my_address, logger, queue):
         # the database
         self.contract_doc = contract_doc
         # the contract
@@ -17,6 +17,7 @@ class Contract:
         self.class_name = ''
         self.code = code
         self.me = me
+        self.my_address = my_address
         self.logger = logger
         self.queue = queue
         self.members = []
@@ -28,7 +29,8 @@ class Contract:
         self.partners = []
         self.partners_db = self.contract_doc.get_sub_collection('pda_partners')
         for key in self.partners_db:
-            self.partners.append(Partner(self.partners_db[key]['address'], key, me, self.queue))
+            if key != me:
+                self.partners.append(Partner(self.partners_db[key]['address'], key, my_address, me, self.queue))
         # consensus protocols
         self.protocol_storage = self.contract_doc.get_sub_collection('pda_protocols')
         self.protocol = None
@@ -69,10 +71,6 @@ class Contract:
     def get_storage(self, name):
         return self.contract_doc.get_sub_collection(f'contract_{name}')
 
-    def read(self, address, agent, contract, method, arguments, values):
-        partner = Partner(address, agent, self.me, None)
-        return partner.read(contract, method, arguments, values)
-
     def run(self, caller, timestamp):
         self.caller = caller
         self.current_timestamp = timestamp
@@ -83,7 +81,7 @@ class Contract:
                'str': str, 'int': int, 'list': list, 'range': range, 'dict': dict, 'len': len, 'master': self.master,
                'timestamp': self.timestamp, 'Storage': self.get_storage, 'off_chain': self.handle_off_chain,
                'eig': self.eig, 'print': print, 'set': set, 'enumerate': enumerate, 'abs': abs, 'sum': sum,
-               'min': min, 'Read': self.read, 'Write': self.read, 'elapsed_time': self.elapsed_time,
+               'min': min, 'elapsed_time': self.elapsed_time,
                'hashcode': self.hashcode}},
              empty_locals)
         class_object = list(empty_locals.values())[0]
@@ -105,22 +103,23 @@ class Contract:
         m = getattr(self.obj, method, None)
         if m:
             try:
-                reply = m(**msg['values'])
+                return m(**msg['values'])
             except (TypeError, Exception) as e:
                 return str(e)
         else:
-            if method == 'get_profile_contract':
-                reply = self.contract_doc['profile']
-        return reply
+            if method == 'get_partners':
+                return [{('agent' if key == '_id' else key): self.partners_db[pid][key]
+                          for key in self.partners_db[pid]} for pid in self.partners_db]
 
-    def connect(self, address, pid, me, my_address, welcome):
-        if pid != me:
-            partner = Partner(address, pid, me, self.queue)
+    def connect(self, address, pid, profile, welcome):
+        self.partners_db[pid] = {'address': address, 'profile': profile}
+        if pid != self.me:
+            partner = Partner(address, pid, self.my_address, self.me, self.queue)
             self.partners.append(partner)
-            self.partners_db[pid] = {'address': address}
             self.protocol.update_partners(self.partners)
             if welcome:
-                partner.welcome(self.hash_code, my_address)
+                partner.welcome(self.hash_code)
+        return {'reply': 'join success'}
 
     def consent(self, record, initiate, direct):
         # if initiate:

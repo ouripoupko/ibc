@@ -48,7 +48,7 @@ class Collection:
         return self.collection.find_one({'_id': item}) is not None
 
     def __len__(self):
-        return self.collection.count()
+        return self.collection.count_documents({})
 
     def store(self, collection):
         for key in collection:
@@ -124,7 +124,8 @@ class Document:
 
     def get_dict(self):
         reply = self.storage.collection.find_one({'_id': self.key})
-        del reply['_id']
+        if reply:
+            del reply['_id']
         return reply
 
     def set_dict(self, value):
