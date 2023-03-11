@@ -252,6 +252,7 @@ def ibc_handler(identity, contract, method):
 def stream():
     identities = request.args.getlist('agent')
     contracts = request.args.getlist('contract')
+    generals = [identities[index] for index in range(len(identities)) if not contracts[index]]
 
     def event_stream():
         db = Redis(host='localhost', port=redis_port, db=0)
@@ -263,11 +264,10 @@ def stream():
                 if message.get('type') == 'message':
                     modified_contract = message.get('data').decode()
                     identity = message.get('channel').decode()
-                    if modified_contract in contracts:
-                        index = contracts.index(modified_contract)
-                        if identities[index] == identity:
-                            logger.warning('found a match ' + contracts[index][0:4] + ' ' + modified_contract[0:4])
-                            yield f'data: {{"agent": "{identity}", "contract": "{modified_contract}"}}\n\n'
+                    index = contracts.index(modified_contract) if modified_contract in contracts else -1
+                    if identity in generals or (index >= 0 and identities[index] == identity):
+                        logger.warning('found a match ' + contracts[index][0:4] + ' ' + modified_contract[0:4])
+                        yield f'data: {{"agent": "{identity}", "contract": "{modified_contract}"}}\n\n'
             else:
                 yield "data: \n\n"
 
