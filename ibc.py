@@ -180,15 +180,12 @@ class IBC:
             self.db.delete(self.identity)
         if isinstance(reply, Waiter):
             channel = self.db.pubsub()
-            if 'hash_code' not in record:
-                print('break here')
             channel.subscribe(record['hash_code'])
             while True:
                 message = channel.get_message(timeout=10)
                 if message:
                     if message.get('type') == 'message':
                         reply = json.loads(message.get('data'))
-                        logger.warning('successfully waited for consensus')
                         break
                 else:
                     reply = {'reply': 'Waited too long for consensus'}
@@ -251,25 +248,28 @@ def ibc_handler(identity, contract, method):
     return response
 
 
-@app.route('/stream/<identity>', defaults={'contract_name': ''})
-@app.route('/stream/<identity>/<contract_name>')
-def stream(identity, contract_name):
+@app.route('/stream')
+def stream():
+    identities = request.args.getlist('agent')
+    contracts = request.args.getlist('contract')
 
     def event_stream():
         db = Redis(host='localhost', port=redis_port, db=0)
         channel = db.pubsub()
-        channel.subscribe(identity)
-        yield 'data: {}\n\n'.format('False')
+        channel.subscribe(*identities)
         while True:
             message = channel.get_message(timeout=10)
             if message:
                 if message.get('type') == 'message':
-                    modified_contract = message.get('data')
-                    if contract_name and contract_name != modified_contract:
-                        continue
-                    yield 'data: {}\n\n'.format('True')
+                    modified_contract = message.get('data').decode()
+                    identity = message.get('channel').decode()
+                    if modified_contract in contracts:
+                        index = contracts.index(modified_contract)
+                        if identities[index] == identity:
+                            logger.warning('found a match ' + contracts[index][0:4] + ' ' + modified_contract[0:4])
+                            yield f'data: {{"agent": "{identity}", "contract": "{modified_contract}"}}\n\n'
             else:
-                yield 'data: {}\n\n'.format('False')
+                yield "data: \n\n"
 
     return Response(event_stream(), mimetype="text/event-stream")
 
