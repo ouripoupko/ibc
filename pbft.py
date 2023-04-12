@@ -312,8 +312,6 @@ class PBFT:
 
     def handle_message(self, record, initiate):
         self.logger.debug(self.me + ' ' + str(record))
-        if 'message' in record and 'msg' in record['message'] and record['message']['msg']['step'] == 'COMMIT' and record['message']['msg']['data']['n'] == 2:
-            pass
         # check if checkpoint was crossed
         if self.parameters['last_index'] > self.parameters['checkpoint'] and \
                 'checkpoint_hash' not in self.parameters:
