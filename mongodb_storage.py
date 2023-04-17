@@ -54,8 +54,8 @@ class Collection:
         for key in collection:
             collection[key]['_id'] = key
         self.collection.delete_many({})
-        self.collection.insert_many(collection.values())
-        print('finished to update protocol db')
+        if collection:
+            self.collection.insert_many(collection.values())
 
     def append(self, item):
         result = self.collection.insert_one(item)
@@ -77,9 +77,12 @@ class Collection:
                     {key: (str(value) if key == '_id' else value) for key, value in item.items()}
                     for item in list(self.collection.find({field: value}))}
         elif operator is None:
-            return {str(item['_id']):
-                    {key: (str(value) if key == '_id' else value) for key, value in item.items()}
-                    for item in list(self.collection.find())}
+            if field is None:
+                return {str(item['_id']):
+                        {key: (str(value) if key == '_id' else value) for key, value in item.items()}
+                        for item in list(self.collection.find())}
+            else:
+                return self[field] if field in self else None
 
 
 class Document:
@@ -112,7 +115,7 @@ class Document:
 
     def get_sub_collection(self, name):
         document = self.storage.collection.find_one({'_id': self.key})
-        if name not in document:
+        if not document or name not in document:
             self.create_sub_collection(name)
             document = self.storage.collection.find_one({'_id': self.key})
         db = self.storage.db
@@ -128,7 +131,7 @@ class Document:
             del reply['_id']
         return reply
 
-    def set_dict(self, value):
+    def update(self, value):
         self.storage.collection.update_one({'_id': self.key}, {'$set': value}, upsert=True)
 
     def exists(self):

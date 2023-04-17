@@ -14,9 +14,11 @@ class ProtocolStep(Enum):
 class PBFT:
     def __init__(self, storage, contract_name, me, partners, logger):
         self.db_storage = storage
-        self.storage = {}
-        for key in storage:
-            self.storage[key] = storage[key].get_dict()
+        collections = storage['collections']
+        self.db_requests = collections.get_sub_collection('requests')
+        self.db_blocks = collections.get_sub_collection('blocks')
+        self.db_preparations = collections.get_sub_collection('preparations')
+        self.storage = self.init_collection(storage)
         if 'parameters' in self.storage:
             self.parameters = self.storage['parameters']
         else:
@@ -27,6 +29,19 @@ class PBFT:
                                'checkpoint': 100,
                                'high_mark': 199,
                                'block': []}
+        self.requests = self.init_collection(self.db_requests)
+        self.blocks = self.init_collection(self.db_blocks)
+        self.preparations = self.init_collection(self.db_preparations)
+        # self.storage = storage
+        # if 'parameters' not in self.storage:
+        #     self.storage['parameters'] = {'view': 0,
+        #                                   'last_index': 0,
+        #                                   'next_index': 0,
+        #                                   'low_mark': 0,
+        #                                   'checkpoint': 100,
+        #                                   'high_mark': 199,
+        #                                   'block': []}
+        # self.parameters = self.storage['parameters']
         self.contract_name = contract_name
         self.me = me
         self.logger = logger
@@ -40,6 +55,13 @@ class PBFT:
                          ProtocolStep.COMMIT: self.receive_commit,
                          ProtocolStep.CHECKPOINT: self.receive_checkpoint}
 
+    @staticmethod
+    def init_collection(collection):
+        reply = {}
+        for key in collection:
+            reply[key] = collection[key].get_dict()
+        return reply
+
     def update_partners(self, partners):
         self.partners = partners
         self.names = [partner.pid for partner in self.partners]
@@ -49,6 +71,10 @@ class PBFT:
     def close(self):
         self.storage['parameters'] = self.parameters
         self.db_storage.store(self.storage)
+        self.db_requests.store(self.requests)
+        self.db_blocks.store(self.blocks)
+        self.db_preparations.store(self.preparations)
+        # pass
 
     def leader_is_me(self):
         return self.names[self.order[self.parameters['view']]] == self.me
@@ -71,26 +97,27 @@ class PBFT:
 
     def store_request(self, data):
         all_exist = False
-        if data['d'] in self.storage:
-            block_code = self.storage[data['d']]
-            block = self.storage[block_code]['block']
+        block_code = None
+        if data['d'] in self.requests:
+            block_code = self.requests[data['d']]['missing']
+            block = self.blocks[block_code]['block']
             all_exist = True
             for key in block:
                 if key == data['d']:
                     continue
-                if isinstance(self.storage[key], str):
+                if 'missing' in self.requests[key]:
                     all_exist = False
                     break
             if all_exist:
-                self.storage[block_code]['step'] = ProtocolStep.PREPARE.name
-        self.storage[data['d']] = {'record': data['o'],
+                self.blocks[block_code]['step'] = ProtocolStep.PREPARE.name
+        self.requests[data['d']] = {'record': data['o'],
                                    'timestamp': data['t'],
                                    'client': data['c']}
         return self.send_phase(block_code, ProtocolStep.PREPARE) if all_exist else False
 
     def send_pre_prepare(self, hash_code):
         if hash_code:
-            self.parameters['block'].append(hash_code)
+            self.parameters['block'] = self.parameters['block'] + [hash_code]
         index = self.parameters['next_index']
         if index - self.parameters['last_index'] > 5 and len(self.parameters['block']) < 1000:
             return
@@ -109,7 +136,7 @@ class PBFT:
         # I should check signatures and digest, but I am lazy
         if data['v'] != self.parameters['view']:
             return
-        if str(data['n']) in self.storage:
+        if str(data['n']) in self.blocks:
             return
         if data['n'] < self.parameters['low_mark'] or data['n'] > self.parameters['high_mark']:
             return
@@ -119,26 +146,26 @@ class PBFT:
         return self.store_pre_prepare(data)
 
     def store_pre_prepare(self, data):
-        self.storage[str(data['n'])] = {'hash': data['d']}
+        self.blocks[str(data['n'])] = {'hash': data['d']}
         block = data['l']
         all_exist = True
         for key in block:
-            if key not in self.storage:
+            if key not in self.requests:
                 all_exist = False
-                self.storage[key] = data['d']
+                self.requests[key] = {'missing': data['d']}
         step = ProtocolStep.PREPARE if all_exist else ProtocolStep.PRE_PREPARE
-        if data['d'] not in self.storage:
-            self.storage[data['d']] = {}
-        self.storage[data['d']].update({'view': data['v'],
+        if data['d'] not in self.preparations:
+            self.preparations[data['d']] = {}
+        self.preparations[data['d']].update({'view': data['v'],
                                         'index': data['n'],
                                         'step': step.name,
                                         'block': block})
         return self.send_phase(data['d'], ProtocolStep.PREPARE) if step is ProtocolStep.PREPARE else False
 
     def send_phase(self, hash_code, phase):
-        record = self.storage.get(hash_code)
-        data = {'v': record['view'],
-                'n': record['index'],
+        preparation = self.preparations.get(hash_code)
+        data = {'v': preparation['view'],
+                'n': preparation['index'],
                 'd': hash_code,
                 'i': self.me}
         for partner in self.partners:
@@ -166,36 +193,36 @@ class PBFT:
         return self.store_phase(data, ProtocolStep.COMMIT)
 
     def store_phase(self, data, phase):
-        record = self.storage.get(data['d'])
-        if not record or phase.name not in record:
+        preparation = self.preparations.get(data['d'])
+        if not preparation or phase.name not in preparation:
             collection = []
         else:
-            collection = record[phase.name]
+            collection = preparation[phase.name]
         collection.append(data)
-        if not record:
-            self.storage[data['d']] = {}
-        self.storage[data['d']].update({phase.name: collection})
+        if not preparation:
+            self.preparations[data['d']] = {}
+        self.preparations[data['d']].update({phase.name: collection})
         return self.check_phase(data['d'], phase)
 
     def check_phase(self, hash_code, phase):
         reply = False
-        record = self.storage.get(hash_code)
+        preparation = self.preparations.get(hash_code)
         collection = []
-        if phase.name in record:
-            collection = record[phase.name]
-        if 'step' in record and record['step'] == phase.name and len(collection) * 3 > len(self.order) * 2:
+        if phase.name in preparation:
+            collection = preparation[phase.name]
+        if 'step' in preparation and preparation['step'] == phase.name and len(collection) * 3 > len(self.order) * 2:
             names = set()
-            view = record['view']
-            index = record['index']
+            view = preparation['view']
+            index = preparation['index']
             for item in collection:
                 if item['v'] == view and item['n'] == index:
                     names.add(item['i'])
             if len(names) * 3 > len(self.order) * 2:
                 if phase is ProtocolStep.PREPARE:
-                    self.storage[hash_code]['step'] = ProtocolStep.COMMIT.name
+                    self.preparations[hash_code]['step'] = ProtocolStep.COMMIT.name
                     reply = self.send_phase(hash_code, ProtocolStep.COMMIT)
                 if phase is ProtocolStep.COMMIT:
-                    self.storage[hash_code]['step'] = ProtocolStep.DONE.name
+                    self.preparations[hash_code]['step'] = ProtocolStep.DONE.name
                     reply = True
         return reply
 
@@ -205,14 +232,14 @@ class PBFT:
         high_mark = self.parameters['high_mark']
         cumulative = ''
         for index in range(low_mark, checkpoint):
-            if str(index) in self.storage:
-                hash_code = self.storage[str(index)]['hash']
-                block = self.storage[hash_code].get('block', [])
+            if str(index) in self.blocks:
+                hash_code = self.blocks[str(index)]['hash']
+                block = self.preparations[hash_code].get('block', [])
                 for key in block:
                     cumulative += key
-                    del self.storage[key]
-                del self.storage[hash_code]
-                del self.storage[str(index)]
+                    del self.requests[key]
+                del self.preparations[hash_code]
+                del self.blocks[str(index)]
         data = {'n': checkpoint,
                 'd': hashlib.sha256(str(cumulative).encode('utf-8')).hexdigest(),
                 'i': self.me}
@@ -231,11 +258,11 @@ class PBFT:
 
     def store_checkpoint(self, data):
         key = f'checkpoint_{str(data["n"])}'
-        collection = self.storage.get(key)
+        collection = self.blocks.get(key)
         if not collection:
             collection = []
         collection.append(data)
-        self.storage[key] = collection
+        self.blocks[key] = collection
         if data['n'] == self.parameters['checkpoint'] and len(collection) * 3 > len(self.order) * 2:
             hash_count = {}
             for item in collection:
@@ -247,7 +274,7 @@ class PBFT:
                         if self.parameters['checkpoint_hash'] == hash_code:
                             # me on track. can clean up checkpoint
                             del self.parameters['checkpoint_hash']
-                            del self.storage[key]
+                            del self.blocks[key]
                             self.parameters['checkpoint'] += 100
                             self.parameters['low_mark'] += 100
                             self.parameters['high_mark'] += 100
@@ -287,22 +314,25 @@ class PBFT:
                     records[partner_hash] = partner_record
         for hash_code in hash_count:
             if hash_count[hash_code] * 3 > len(self.order):
-                if str(last_index) in self.storage:
-                    stored_hash = self.storage[str(last_index)]['hash']
+                if str(last_index) in self.blocks:
+                    stored_hash = self.blocks[str(last_index)]['hash']
                     if stored_hash != hash_code:
-                        del self.storage[stored_hash]
+                        del self.preparations[stored_hash]
                 else:
-                    self.storage[str(last_index)].update({'hash': hash_code})
-                self.storage[hash_code].update({'step': ProtocolStep.DONE.name,
+                    self.blocks[str(last_index)].update({'hash': hash_code})
+                self.preparations[hash_code].update({'step': ProtocolStep.DONE.name,
                                                 'request': records[hash_code]})
 
     def record_message(self, record):
+        # it seems there is a conceptual defect here.
+        # this function assumes all past requests were handled one by one
+        # if requests were handled in blocks, this agent index will run faster than others
         self.logger.debug('record: ' + str(record))
         index = self.parameters['next_index']
         hash_code = record['hash_code']
-        self.storage[str(index)] = {'hash': str(index)+hash_code}
-        self.storage[str(index)+hash_code] = {'block': [hash_code]}
-        self.storage[hash_code] = {'dummy': 'for deletion'}
+        self.blocks[str(index)] = {'hash': str(index)+hash_code}
+        self.preparations[str(index)+hash_code] = {'block': [hash_code]}
+        self.requests[hash_code] = {'dummy': 'for deletion'}
         self.parameters['last_index'] += 1
         self.parameters['next_index'] += 1
         if self.parameters['last_index'] > self.parameters['checkpoint']:
@@ -331,12 +361,12 @@ class PBFT:
             if receiver(data):
                 reply = []
                 last_index = self.parameters['last_index']
-                while str(last_index) in self.storage:
-                    hash_code = self.storage[str(last_index)]['hash']
-                    pre_prepare = self.storage.get(hash_code)
+                while str(last_index) in self.blocks:
+                    hash_code = self.blocks[str(last_index)]['hash']
+                    pre_prepare = self.preparations.get(hash_code)
                     if pre_prepare and 'step' in pre_prepare and pre_prepare['step'] == ProtocolStep.DONE.name:
                         for key in pre_prepare['block']:
-                            request = self.storage[key]
+                            request = self.requests[key]
                             stored_record = request['record']
                             stored_record['hash_code'] = key
                             reply.append(stored_record)

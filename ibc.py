@@ -32,13 +32,9 @@ class Waiter:
 
 
 class IBC:
-    def __init__(self, identity):
-        self.storage_bridge = DBBridge(logger).connect(mongo_port)
-        self.agents = self.storage_bridge.get_root_collection()
+    def __init__(self, identity, one_time):
         self.identity = identity
-        self.identity_doc = self.agents[identity]
-        self.state = State(self.identity_doc, logger) if self.identity_doc.exists() else None
-        self.ledger = BlockChain(self.identity_doc, logger) if self.identity_doc.exists() else None
+        self.one_time = one_time
         self.db = Redis(host='localhost', port=redis_port, db=0)
         self.actions = {'GET':  {'is_exist_agent': self.is_exist_agent,
                                  'get_contracts': self.get_contracts},
@@ -51,16 +47,29 @@ class IBC:
                         'POST': {'contract_read': self.contract_read,
                                  'contract_write': self.contract_write,
                                  'a2a_get_ledger': self.a2a_get_ledger}}
+        self.storage_bridge = None
+        self.agents = None
+        self.identity_doc = None
+        self.state = None
+        self.ledger = None
+
+    def open(self):
+        self.storage_bridge = DBBridge(logger).connect(mongo_port)
+        self.agents = self.storage_bridge.get_root_collection()
+        self.identity_doc = self.agents[self.identity]
+        self.state = State(self.identity_doc, logger) if self.identity_doc.exists() else None
+        self.ledger = BlockChain(self.identity_doc, logger) if self.identity_doc.exists() else None
 
     def close(self):
-        if self.state:
-            self.state.close()
-        self.storage_bridge.disconnect()
+        if self.one_time:
+            if self.state:
+                self.state.close()
+            self.storage_bridge.disconnect()
 
     def commit(self, command, record, *args, **kwargs):
         self.ledger.log(record)
         reply = command(*args, **kwargs)
-        self.db.publish(self.identity, record['contract'])
+        self.db.publish('stream' + self.identity, record['contract'])
         return reply
 
     def is_exist_agent(self, record, direct):
@@ -113,8 +122,9 @@ class IBC:
         records = partner.get_ledger(record['contract'])
         for key in sorted(records.keys()):
             self.handle_record(records[key], True)
-        self.db.publish(self.identity, record['contract'])
-        self.db.publish(record['contract'], json.dumps({'reply': 'join success'}))
+        self.db.publish('stream' + self.identity, record['contract'])
+        self.db.publish('wait' + self.identity, json.dumps({'key': record['contract'],
+                                                            'record': {'reply': 'join success'}}))
         return {}
 
     def contract_read(self, record, direct):
@@ -161,7 +171,8 @@ class IBC:
                 reply = self.commit(self.state.join, record,
                                    record['contract'], message['msg'], message['to'] == self.identity)
             if not immediate:
-                self.db.publish(record['hash_code'], json.dumps(reply))
+                self.db.publish('wait' + self.identity, json.dumps({'key': record['hash_code'],
+                                                                    'record': reply}))
         return reply if immediate else {}
 
     def handle_record(self, record, direct=False):
@@ -173,20 +184,24 @@ class IBC:
                 attempts += 1
                 if attempts > 10000:  # 100 seconds
                     return {'reply': 'timeout - could not lock mutex'}
+            self.open()
 
         action = self.actions[record['type']].get(record['action'])
         reply = action(record, direct)
         if not direct:
+            self.close()
             self.db.delete(self.identity)
         if isinstance(reply, Waiter):
             channel = self.db.pubsub()
-            channel.subscribe(record['hash_code'])
+            channel.subscribe('wait' + self.identity)
             while True:
-                message = channel.get_message(timeout=10)
+                message = channel.get_message(timeout=60)
                 if message:
                     if message.get('type') == 'message':
-                        reply = json.loads(message.get('data'))
-                        break
+                        data = json.loads(message.get('data'))
+                        if data['key'] == record['hash_code']:
+                            reply = data['record']
+                            break
                 else:
                     reply = {'reply': 'Waited too long for consensus'}
                     break
@@ -230,8 +245,7 @@ def ibc_handler(identity, contract, method):
               'method': method,
               'message': msg,
               'agent': identity}
-    logger.info('-------------------------------------------------------')
-    logger.warning(record)
+    logger.info(record)
     if isinstance(ibc, dict):
         if identity in ibc:
             this_ibc = ibc[identity]
@@ -239,12 +253,10 @@ def ibc_handler(identity, contract, method):
             this_ibc = IBC(identity)
             ibc[identity] = this_ibc
     else:
-        this_ibc = IBC(identity)
+        this_ibc = IBC(identity, True)
     response = jsonify(this_ibc.handle_record(record))
-    if not isinstance(ibc, dict):
-        this_ibc.close()
     response.headers.add('Access-Control-Allow-Origin', '*')
-    logger.warning(response.get_json())
+    logger.info(response.get_json())
     return response
 
 
@@ -252,12 +264,13 @@ def ibc_handler(identity, contract, method):
 def stream():
     identities = request.args.getlist('agent')
     contracts = request.args.getlist('contract')
-    generals = [identities[index] for index in range(len(identities)) if not contracts[index]]
+    stream_identities = ['stream' + identity for identity in identities]
+    generals = [stream_identities[index] for index in range(len(stream_identities)) if not contracts[index]]
 
     def event_stream():
         db = Redis(host='localhost', port=redis_port, db=0)
         channel = db.pubsub()
-        channel.subscribe(*identities)
+        channel.subscribe(*stream_identities)
         while True:
             message = channel.get_message(timeout=10)
             if message:
@@ -265,8 +278,8 @@ def stream():
                     modified_contract = message.get('data').decode()
                     identity = message.get('channel').decode()
                     index = contracts.index(modified_contract) if modified_contract in contracts else -1
-                    if identity in generals or (index >= 0 and identities[index] == identity):
-                        logger.warning('found a match ' + contracts[index][0:4] + ' ' + modified_contract[0:4])
+                    if identity in generals or (index >= 0 and stream_identities[index] == identity):
+                        logger.info('found a match ' + contracts[index][0:4] + ' ' + modified_contract[0:4])
                         yield f'data: {{"agent": "{identity}", "contract": "{modified_contract}"}}\n\n'
             else:
                 yield "data: \n\n"
@@ -304,5 +317,5 @@ if __name__ == '__main__':
     logger.setLevel(logging.WARNING)
 #    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     # turning ibc from None to empty dict triggers memory cache when using flask directly, without gunicorn
-    ibc = {}
+#    ibc = {}
     app.run(host='0.0.0.0', port=port, use_reloader=False)  # , threaded=False)
