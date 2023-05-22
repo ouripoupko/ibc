@@ -1,68 +1,81 @@
-from contract import Contract
-from queue import Queue
-from threading import Thread
+from builtins import __build_class__
+import numpy as np
+from numpy.linalg import eig
+from datetime import datetime
+import hashlib
+
+def my_eig(array):
+    npa = np.array(array)
+    npa = npa / npa.sum(axis=0)
+    w, v = eig(npa)
+    w.sort()
+    return w.tolist()
+
+def hashcode(something):
+    return hashlib.sha256(str(something).encode('utf-8')).hexdigest()
 
 
-def sender(queue):
-    while True:
-        item = queue.get()
-        if isinstance(item, bool):
-            break
-        item['func'](item['url'], params=item['params'], json=item['json'])
-
+def elapsed_time(start, end):
+    delta = datetime.strptime(end, '%Y%m%d%H%M%S%f') - datetime.strptime(start, '%Y%m%d%H%M%S%f')
+    return delta.total_seconds()
 
 class State:
 
-    def __init__(self, agent_doc, logger):
-        self.agent = agent_doc.get_key()
-        self.address = agent_doc['address']
-        self.storage = agent_doc.get_sub_collection('contracts')
-        self.storage_docs = {}
-        self.contracts = {}
-        self.logger = logger
-        self.queue = Queue()
-        Thread(target=sender, args=(self.queue,), daemon=True).start()
+    def __init__(self, contract_doc, partners_db):
+        self.contract_doc = contract_doc
+        self.partners_db = partners_db
+        self.class_name = ''
+        self.obj = None
+        self.members = []
+        self.methods = []
+        self.current_timestamp = None
+        self.caller = None
 
-    def close(self):
-        self.queue.put(True)
-        for contract in self.contracts.values():
-            contract.close()
+    def master(self):
+        return self.caller
 
-    def add(self, message, timestamp, hash_code):
-        message['id'] = hash_code
-        self.storage[hash_code] = message
-        self.storage[hash_code]['timestamp'] = timestamp
-        self.get(hash_code)
-        self.contracts[hash_code].connect(message['address'], message['pid'], message.get('profile',''), False)
-        return hash_code
+    def timestamp(self):
+        return self.current_timestamp
 
-    def join(self, hash_code, msg, welcome):
-        return self.contracts[hash_code].connect(msg['address'], msg['pid'], msg['profile'], welcome)
+    def get_storage(self, name):
+        return self.contract_doc.get_sub_collection(f'contract_{name}')
 
-    def get(self, hash_code):
-        if hash_code not in self.storage:
-            return None
-        self.storage_docs[hash_code] = self.storage[hash_code].get_dict()
-        if hash_code not in self.contracts:
-            self.contracts[hash_code] = Contract(self.storage[hash_code], hash_code,
-                                                 self.storage_docs[hash_code]['code'],
-                                                 self.agent, self.address, self.logger, self.queue)
-            self.contracts[hash_code].run(self.storage_docs[hash_code]['pid'],
-                                          self.storage_docs[hash_code]['timestamp'])
-        return self.contracts[hash_code]
+    def run(self, caller, timestamp):
+        self.caller = caller
+        self.current_timestamp = timestamp
+        empty_locals = {}
+        exec(self.contract_doc['code'],
+             {'__builtins__':
+                  {'__build_class__': __build_class__, '__name__': __name__,
+                   'str': str, 'int': int, 'list': list, 'range': range, 'dict': dict, 'len': len, 'master': self.master,
+                   'timestamp': self.timestamp, 'Storage': self.get_storage,
+                   'eig': my_eig, 'print': print, 'set': set, 'enumerate': enumerate, 'abs': abs, 'sum': sum,
+                   'min': min, 'elapsed_time': elapsed_time,
+                   'hashcode': hashcode}},
+             empty_locals)
+        class_object = list(empty_locals.values())[0]
+        self.class_name = class_object.__name__
+        self.obj = class_object()
+        attributes = [attribute for attribute in dir(self.obj) if not attribute.startswith('_')]
+        self.members = [attribute for attribute in attributes if not callable(getattr(self.obj, attribute))]
+        method_names = [attribute for attribute in attributes if callable(getattr(self.obj, attribute))]
+        self.methods = [{'name': name,
+                         'arguments': [arg for arg in
+                                       list(getattr(self.obj, name).__code__.co_varnames)[1:]
+                                       if not arg.startswith('_')]}
+                        for name in method_names]
+        return "ready"
 
-    def trigger(self, msg):
-        pass
-
-    def get_state(self, hash_code):
-        contract = self.get(hash_code)
-        if contract:
-            return contract.get_info()
+    def call(self, caller, method, msg, timestamp):
+        self.caller = caller
+        self.current_timestamp = timestamp
+        m = getattr(self.obj, method, None)
+        if m:
+            try:
+                return m(**msg['values'])
+            except (TypeError, Exception) as e:
+                return str(e)
         else:
-            return {'reply': 'no such contract'}
-
-    def get_contracts(self):
-        reply =  [{key: self.storage[hash_code][key] for key in self.storage[hash_code]
-                   if key in ['id', 'name', 'contract', 'code', 'protocol', 'default_app', 'pid', 'address']}
-                  for hash_code in self.storage]
-        return reply
+            if method == 'get_partners':
+                return [{('agent' if key == '_id' else key): self.partners_db[pid][key]
+                         for key in self.partners_db[pid]} for pid in self.partners_db]

@@ -13,12 +13,10 @@ class Partner:
         return str({'class': 'Partner', 'id': self.pid, 'address': self.address})
 
     def connect(self, contract, profile):
-        self.queue.put({'func': requests.put,
-                        'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
-                        'params': {'action': 'a2a_connect'},
-                        'json': {'from': self.me, 'to': self.pid,
-                                 'msg': {'address': self.my_address, 'pid': self.me, 'profile': profile}}})
-        return {'reply': 'message sent to partner'}
+        return requests.put(self.address + 'ibc/app/' + self.pid + '/' + contract,
+                            params={'action': 'a2a_connect'},
+                            json={'from': self.me, 'to': self.pid,
+                                  'msg': {'address': self.my_address, 'pid': self.me, 'profile': profile}})
 
     def welcome(self, contract):
         self.queue.put({'func': requests.put,
