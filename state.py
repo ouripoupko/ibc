@@ -3,6 +3,7 @@ import numpy as np
 from numpy.linalg import eig
 from datetime import datetime
 import hashlib
+import random
 
 def my_eig(array):
     npa = np.array(array)
@@ -40,6 +41,20 @@ class State:
     def get_storage(self, name):
         return self.contract_doc.get_sub_collection(f'contract_{name}')
 
+    def get_partners(self):
+        return [{('agent' if key == '_id' else key): self.partners_db[pid][key]
+                 for key in self.partners_db[pid]} for pid in self.partners_db]
+
+    def get_partner_keys(self):
+        return [pid for pid in self.partners_db]
+
+    def random(self, seed, state, limit):
+        if seed:
+            random.seed(seed)
+        if state:
+            random.setstate(state)
+        return [random.randrange(limit), random.getstate()]
+
     def run(self, caller, timestamp):
         self.caller = caller
         self.current_timestamp = timestamp
@@ -47,11 +62,11 @@ class State:
         exec(self.contract_doc['code'],
              {'__builtins__':
                   {'__build_class__': __build_class__, '__name__': __name__,
-                   'str': str, 'int': int, 'list': list, 'range': range, 'dict': dict, 'len': len, 'master': self.master,
-                   'timestamp': self.timestamp, 'Storage': self.get_storage,
-                   'eig': my_eig, 'print': print, 'set': set, 'enumerate': enumerate, 'abs': abs, 'sum': sum,
-                   'min': min, 'elapsed_time': elapsed_time,
-                   'hashcode': hashcode}},
+                   'str': str, 'int': int, 'list': list, 'range': range, 'dict': dict, 'len': len,
+                   'master': self.master, 'timestamp': self.timestamp, 'Storage': self.get_storage,
+                   'partners': self.get_partner_keys, 'eig': my_eig, 'print': print, 'type': type, 'set': set,
+                   'enumerate': enumerate, 'abs': abs, 'sum': sum, 'min': min, 'elapsed_time': elapsed_time,
+                   'hashcode': hashcode, 'random': self.random}},
              empty_locals)
         class_object = list(empty_locals.values())[0]
         self.class_name = class_object.__name__
@@ -77,5 +92,4 @@ class State:
                 return str(e)
         else:
             if method == 'get_partners':
-                return [{('agent' if key == '_id' else key): self.partners_db[pid][key]
-                         for key in self.partners_db[pid]} for pid in self.partners_db]
+                return self.get_partners()

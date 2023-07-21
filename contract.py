@@ -1,3 +1,5 @@
+import json
+
 from partner import Partner
 from pbft import PBFT
 from nakamoto import Nakamoto
@@ -5,6 +7,7 @@ from dissemination import Dissemination
 from queue import Queue
 from threading import Thread
 from state import State
+
 
 def sender(queue):
     while True:
@@ -41,7 +44,20 @@ class Contract:
         elif protocol_name == 'BFT':
             self.protocol = PBFT(self.protocol_storage, self.hash_code, self.me, self.partners, self.logger)
         elif protocol_name == 'Dissemination':
-            self.protocol = Dissemination(self.protocol_storage, self.hash_code, self.me, self.partners, self.logger)
+            self.partners = []
+            group = self.contract_doc['group']
+            if isinstance(group, list):
+                for member in group:
+                    member_dict = None
+                    try:
+                        member_dict = json.loads(member)
+                    except (Exception,):
+                        continue
+                    if member_dict and 'address' in member_dict and 'agent' in member_dict:
+                        self.partners.append(Partner(member_dict['address'], member_dict['agent'],
+                                                     my_address, me, self.queue))
+            self.protocol = Dissemination(self.protocol_storage, self.hash_code, self.me,
+                                          self.partners, self.contract_doc['threshold'], self.logger)
         self.state = State(self.contract_doc, self.partners_db)
 
     def close(self):
@@ -54,6 +70,7 @@ class Contract:
         self.contract_doc['timestamp'] = record['timestamp']
         self.run()
         self.connect(self.contract_doc['address'], self.contract_doc['pid'], self.contract_doc['profile'], False)
+        return self.hash_code
 
     def run(self):
         self.state.run(self.contract_doc['pid'], self.contract_doc['timestamp'])

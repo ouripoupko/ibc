@@ -28,7 +28,8 @@ class Navigator:
                                  'join_contract': self.join_contract,
                                  'a2a_connect': self.a2a_connect,
                                  'a2a_welcome': self.a2a_welcome,
-                                 'a2a_consent': self.a2a_consent},
+                                 'a2a_consent': self.a2a_consent,
+                                 'a2a_disseminate': self.a2a_disseminate},
                         'POST': {'contract_read': self.contract_read,
                                  'contract_write': self.contract_write,
                                  'a2a_get_ledger': self.a2a_get_ledger}}
@@ -91,9 +92,7 @@ class Navigator:
         self.contracts[hash_code] = Contract(self.contracts_db[hash_code], hash_code,
                                              self.identity, self.identity_doc['address'],
                                              self.ledger, self.logger)
-        self.contracts[hash_code].create(record)
-        self.db.publish('stream' + self.identity, record['contract'])
-        return hash_code
+        return self.handle_consent_records(self.contracts[hash_code].consent(record, True, direct), True)
 
     def join_contract(self, record, _direct):
         message = record['message']
@@ -155,6 +154,11 @@ class Navigator:
         contract = self.get_contract(record['contract'])
         return contract.get_ledger(index)
 
+    def a2a_disseminate(self, record, _direct):
+        original = record['message']['msg']['record']
+        self.handle_record(original, True)
+        return {}
+
     def handle_consent_records(self, records, immediate):
         reply = Waiter()
         for record in records:
@@ -164,6 +168,8 @@ class Navigator:
                 reply = contract.call(record, True)
             elif action == 'a2a_connect':
                 reply = contract.join(record)
+            elif action == 'deploy_contract':
+                reply = contract.create(record)
             self.db.publish('stream' + self.identity, record['contract'])
             if not immediate:
                 self.db.publish('wait' + self.identity, json.dumps({'key': record['hash_code'],
@@ -190,7 +196,7 @@ class Navigator:
             channel = self.db.pubsub()
             channel.subscribe('wait' + self.identity)
             while True:
-                message = channel.get_message(timeout=60)
+                message = channel.get_message(timeout=180)
                 if message:
                     if message.get('type') == 'message':
                         data = json.loads(message.get('data'))

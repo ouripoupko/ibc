@@ -100,7 +100,7 @@ class PBFT:
         block_code = None
         if data['d'] in self.requests:
             block_code = self.requests[data['d']]['missing']
-            block = self.blocks[block_code]['block']
+            block = self.preparations[block_code]['block']
             all_exist = True
             for key in block:
                 if key == data['d']:
@@ -109,7 +109,7 @@ class PBFT:
                     all_exist = False
                     break
             if all_exist:
-                self.blocks[block_code]['step'] = ProtocolStep.PREPARE.name
+                self.preparations[block_code]['step'] = ProtocolStep.PREPARE.name
         self.requests[data['d']] = {'record': data['o'],
                                    'timestamp': data['t'],
                                    'client': data['c']}

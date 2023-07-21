@@ -27,7 +27,16 @@ class Delib:
         pass
 
     def delete_statement(self, sid):
-        pass
+        if sid in self.statements:
+            record = self.statements[sid]
+            if record['owner'] == master() and not record['kids']:
+                parent = record['parent']
+                if parent and parent in self.statements:
+                    kids = self.statements[parent]['kids']
+                    if sid in kids:
+                        kids.remove(sid)
+                    self.statements[parent]['kids'] = kids
+                del self.statements[sid]
 
     def set_ranking(self, sid, order):
         _counter = self.parameters['counter']

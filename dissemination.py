@@ -1,5 +1,5 @@
 class Dissemination:
-    def __init__(self, storage, contract_name, me, partners, logger):
+    def __init__(self, storage, contract_name, me, partners, threshold, logger):
         self.storage = storage
         collections = storage['collections']
         self.dag = collections.get_sub_collection('dag')
@@ -12,6 +12,7 @@ class Dissemination:
         self.me = me
         self.logger = logger
         self.partners = partners
+        self.threshold = threshold
 
     def update_partners(self, partners):
         self.partners = partners
@@ -24,6 +25,15 @@ class Dissemination:
 
     def handle_message(self, record, initiate):
         if initiate:
+            if record['agent'] == self.me:
+                for partner in self.partners:
+                    if partner.pid != self.me:
+                        print('sending record from ' + record['agent'] + ' by ' + self.me + ' to ' + partner.me)
+                        partner.disseminate(record)
+                    else:
+                        print('skipping sending to myself')
+            else:
+                print('handling message that isn\'t mine')
             return [record]
         else:
             self.logger.error('I should not be here')
