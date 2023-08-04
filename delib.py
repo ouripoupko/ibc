@@ -36,6 +36,11 @@ class Delib:
                     if sid in kids:
                         kids.remove(sid)
                     self.statements[parent]['kids'] = kids
+                elif sid in self.parameters['topics']:
+                    kids = self.parameters['topics']
+                    if sid in kids:
+                        kids.remove(sid)
+                    self.parameters['topics'] = kids
                 del self.statements[sid]
 
     def set_ranking(self, sid, order):
