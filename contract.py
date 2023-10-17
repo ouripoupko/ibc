@@ -69,7 +69,7 @@ class Contract:
         self.contract_doc['id'] = self.hash_code
         self.contract_doc['timestamp'] = record['timestamp']
         self.run()
-        self.connect(self.contract_doc['address'], self.contract_doc['pid'], self.contract_doc['profile'], False)
+        self.connect(self.contract_doc['address'], self.contract_doc['pid'], self.contract_doc['profile'])
         return self.hash_code
 
     def run(self):
@@ -79,16 +79,23 @@ class Contract:
         self.ledger.log(record)
         message = record['message']
         msg = message['msg']
-        return self.connect(msg['address'], msg['pid'], msg['profile'], message['to'] == self.me)
+        status = self.state.call(message['to'],
+                                 'approve_partner',
+                                 {'values': {'partner': msg['pid']}},
+                                 record.get('timestamp', None))
+        if status:
+            self.connect(msg['address'], msg['pid'], msg['profile'])
+        if message['to'] == self.me:
+            partner = Partner(msg['address'], msg['pid'], self.my_address, self.me, self.queue)
+            partner.reply_join(self.hash_code, status)
+        return {'reply': status}
 
-    def connect(self, address, pid, profile, welcome):
+    def connect(self, address, pid, profile):
         self.partners_db[pid] = {'address': address, 'profile': profile}
         if pid != self.me:
             partner = Partner(address, pid, self.my_address, self.me, self.queue)
             self.partners.append(partner)
             self.protocol.update_partners(self.partners)
-            if welcome:
-                partner.welcome(self.hash_code)
         return {'reply': 'join success'}
 
     def consent(self, record, initiate, direct):

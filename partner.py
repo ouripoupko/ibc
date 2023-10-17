@@ -18,12 +18,12 @@ class Partner:
                             json={'from': self.me, 'to': self.pid,
                                   'msg': {'address': self.my_address, 'pid': self.me, 'profile': profile}})
 
-    def welcome(self, contract):
+    def reply_join(self, contract, status):
         self.queue.put({'func': requests.put,
                         'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
-                        'params': {'action': 'a2a_welcome'},
+                        'params': {'action': 'a2a_reply_join'},
                         'json': {'from': self.me, 'to': self.pid,
-                                 'msg': {'welcome': self.my_address, 'pid': self.me}}})
+                                 'msg': {'address': self.my_address, 'pid': self.me, 'status': status}}})
         return {'reply': 'message sent to partner'}
 
     def get_ledger(self, contract, index = 0):

@@ -93,3 +93,5 @@ class State:
         else:
             if method == 'get_partners':
                 return self.get_partners()
+            elif method == 'approve_partner':
+                return True

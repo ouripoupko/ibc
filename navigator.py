@@ -11,9 +11,6 @@ from contract import Contract
 
 from redis import Redis
 
-class Waiter:
-    pass
-
 class Navigator:
     def __init__(self, identity, one_time, mongo_port, redis_port, logger):
         self.mongo_port = mongo_port
@@ -27,11 +24,12 @@ class Navigator:
                                  'deploy_contract': self.deploy_contract,
                                  'join_contract': self.join_contract,
                                  'a2a_connect': self.a2a_connect,
-                                 'a2a_welcome': self.a2a_welcome,
+                                 'a2a_reply_join': self.a2a_reply_join,
                                  'a2a_consent': self.a2a_consent,
                                  'a2a_disseminate': self.a2a_disseminate},
                         'POST': {'contract_read': self.contract_read,
                                  'contract_write': self.contract_write,
+                                 'get_reply': self.get_reply,
                                  'a2a_get_ledger': self.a2a_get_ledger}}
         self.storage_bridge = None
         self.agents = None
@@ -92,7 +90,7 @@ class Navigator:
         self.contracts[hash_code] = Contract(self.contracts_db[hash_code], hash_code,
                                              self.identity, self.identity_doc['address'],
                                              self.ledger, self.logger)
-        return self.handle_consent_records(self.contracts[hash_code].consent(record, True, direct), True)
+        return self.handle_consent_records(self.contracts[hash_code].consent(record, True, direct), direct)
 
     def join_contract(self, record, _direct):
         message = record['message']
@@ -100,7 +98,8 @@ class Navigator:
         partner = Partner(message['address'], message['agent'],
                           self.identity_doc['address'], self.identity, None)
         partner.connect(message['contract'], message['profile'])
-        return Waiter()
+        self.db.setnx(self.identity + message['contract'], "")
+        return {'reply': message['contract']}
 
     def a2a_connect(self, record, direct):
         # a partner requests to join
@@ -110,19 +109,22 @@ class Navigator:
             record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
         if not contract:
             return {'reply': 'contract not found'}
-        return self.handle_consent_records(contract.consent(record, True, direct), True)
+        return self.handle_consent_records(contract.consent(record, True, direct), direct)
 
-    def a2a_welcome(self, record, _direct):
+    def a2a_reply_join(self, record, _direct):
         # a partner notifies success on join request
         message = record['message']
-        partner = Partner(message['msg']['welcome'], message['msg']['pid'],
-                          self.identity_doc['address'], self.identity, None)
-        records = partner.get_ledger(record['contract'])
-        for key in sorted(records.keys()):
-            self.handle_record(records[key], True)
-        self.db.publish('stream' + self.identity, record['contract'])
-        self.db.publish('wait' + self.identity, json.dumps({'key': record['contract'],
-                                                            'record': {'reply': 'join success'}}))
+        status = message['msg']['status']
+        if status:
+            partner = Partner(message['msg']['address'], message['msg']['pid'],
+                              self.identity_doc['address'], self.identity, None)
+            records = partner.get_ledger(record['contract'])
+            for key in sorted(records.keys()):
+                self.handle_record(records[key], True)
+        print('publish contract join')
+        self.db.publish(self.identity, record['contract'])
+        self.db.set(self.identity + record['contract'], json.dumps({'status': status}))
+        self.db.expire(self.identity + record['contract'], 180)
         return {}
 
     def contract_read(self, record, _direct):
@@ -141,12 +143,18 @@ class Navigator:
             record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
         if not contract:
             return {'reply': 'contract not found'}
-        return self.handle_consent_records(contract.consent(record, True, direct), True)
 
-    def a2a_consent(self, record, _direct):
+        # see join request on how to record function call output
+        return self.handle_consent_records(contract.consent(record, True, direct), direct)
+
+    def get_reply(self, record, _direct):
+        # a client request reply of a previous call
+        return json.loads(self.db.get(self.identity + record['message']['reply']))
+
+    def a2a_consent(self, record, direct):
         # a partner is reporting consensus protocol
         contract = self.get_contract(record['contract'])
-        return self.handle_consent_records(contract.consent(record, False, False), False)
+        return self.handle_consent_records(contract.consent(record, False, False), direct)
 
     def a2a_get_ledger(self, record, _direct):
         # a partner asks for a ledger history
@@ -159,8 +167,8 @@ class Navigator:
         self.handle_record(original, True)
         return {}
 
-    def handle_consent_records(self, records, immediate):
-        reply = Waiter()
+    def handle_consent_records(self, records, direct):
+        reply = {}
         for record in records:
             action = record['action']
             contract = self.get_contract(record['contract'])
@@ -170,11 +178,9 @@ class Navigator:
                 reply = contract.join(record)
             elif action == 'deploy_contract':
                 reply = contract.create(record)
-            self.db.publish('stream' + self.identity, record['contract'])
-            if not immediate:
-                self.db.publish('wait' + self.identity, json.dumps({'key': record['hash_code'],
-                                                                    'record': reply}))
-        return reply if immediate else {}
+            if not direct:
+                self.db.publish(self.identity, record['contract'])
+        return reply
 
     def handle_record(self, record, direct=False):
         # mutex per identity
@@ -192,18 +198,4 @@ class Navigator:
         if not direct:
             self.close()
             self.db.delete(self.identity)
-        if isinstance(reply, Waiter):
-            channel = self.db.pubsub()
-            channel.subscribe('wait' + self.identity)
-            while True:
-                message = channel.get_message(timeout=180)
-                if message:
-                    if message.get('type') == 'message':
-                        data = json.loads(message.get('data'))
-                        if data['key'] == record['hash_code']:
-                            reply = data['record']
-                            break
-                else:
-                    reply = {'reply': 'Waited too long for consensus'}
-                    break
         return reply

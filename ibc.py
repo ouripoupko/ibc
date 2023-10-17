@@ -57,7 +57,7 @@ def ibc_handler(identity, contract, method):
               'method': method,
               'message': msg,
               'agent': identity}
-    logger.info(record)
+    logger.info('record: ' + str(record))
     if isinstance(operator, dict):
         if identity in operator:
             this_operator = operator[identity]
@@ -68,7 +68,7 @@ def ibc_handler(identity, contract, method):
         this_operator = Navigator(identity, True, mongo_port, redis_port, logger)
     response = jsonify(this_operator.handle_record(record))
     response.headers.add('Access-Control-Allow-Origin', '*')
-    logger.info(response.get_json())
+    logger.info('response: ' + str(response.get_json()))
     return response
 
 
@@ -76,13 +76,12 @@ def ibc_handler(identity, contract, method):
 def stream():
     identities = request.args.getlist('agent')
     contracts = request.args.getlist('contract')
-    stream_identities = ['stream' + identity for identity in identities]
-    generals = [stream_identities[index] for index in range(len(stream_identities)) if not contracts[index]]
+    generals = [identities[index] for index in range(len(identities)) if not contracts[index]]
 
     def event_stream():
         db = Redis(host='localhost', port=redis_port, db=0)
         channel = db.pubsub()
-        channel.subscribe(*stream_identities)
+        channel.subscribe(*identities)
         while True:
             message = channel.get_message(timeout=10)
             if message:
@@ -90,7 +89,7 @@ def stream():
                     modified_contract = message.get('data').decode()
                     identity = message.get('channel').decode()
                     index = contracts.index(modified_contract) if modified_contract in contracts else -1
-                    if identity in generals or (index >= 0 and stream_identities[index] == identity):
+                    if identity in generals or (index >= 0 and identities[index] == identity):
                         logger.info('found a match ' + contracts[index][0:4] + ' ' + modified_contract[0:4])
                         yield f'data: {{"agent": "{identity}", "contract": "{modified_contract}"}}\n\n'
             else:
