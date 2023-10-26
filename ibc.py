@@ -1,6 +1,7 @@
 import sys
 import os
 import logging
+import random
 
 from flask import Flask, request, send_from_directory, render_template, jsonify, Response
 from flask_cors import CORS
@@ -57,7 +58,8 @@ def ibc_handler(identity, contract, method):
               'method': method,
               'message': msg,
               'agent': identity}
-    logger.info('record: ' + str(record))
+    log_id = str(random.random())[2:8]
+    logger.info('record ' + log_id+ ': ' + str(record))
     if isinstance(operator, dict):
         if identity in operator:
             this_operator = operator[identity]
@@ -68,7 +70,7 @@ def ibc_handler(identity, contract, method):
         this_operator = Navigator(identity, True, mongo_port, redis_port, logger)
     response = jsonify(this_operator.handle_record(record))
     response.headers.add('Access-Control-Allow-Origin', '*')
-    logger.info('response: ' + str(response.get_json()))
+    logger.info('response ' + log_id+ ': ' + str(response.get_json()))
     return response
 
 
@@ -103,7 +105,7 @@ class LoggingMiddleware(object):
         self._app = the_app
 
     def __call__(self, env, resp):
-        logger.debug('REQUEST '+env)
+        logger.debug('REQUEST ')
 
         def log_response(status, headers, *args):
             logger.debug('RESPONSE '+str(status)+' '+str(headers))
@@ -125,8 +127,8 @@ if __name__ == '__main__':
     logging.basicConfig(**conf_kwargs)
 
     logger = logging.getLogger('werkzeug')
-    logger.setLevel(logging.WARNING)
-#    app.wsgi_app = LoggingMiddleware(app.wsgi_app)
+    logger.setLevel(logging.INFO)
+    # app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     # turning operator from None to empty dict triggers memory cache when using flask directly, without gunicorn
 #    operator = {}
     app.run(host='0.0.0.0', port=port, use_reloader=False)  # , threaded=False)

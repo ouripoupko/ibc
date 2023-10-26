@@ -18,7 +18,7 @@ def sender(queue):
 
 
 class Contract:
-    def __init__(self, contract_doc, hash_code, me, my_address, ledger, logger):
+    def __init__(self, contract_doc, hash_code, me, my_address, navigator, ledger, logger):
         # the database
         self.contract_doc = contract_doc
         # the contract
@@ -58,7 +58,7 @@ class Contract:
                                                      my_address, me, self.queue))
             self.protocol = Dissemination(self.protocol_storage, self.hash_code, self.me,
                                           self.partners, self.contract_doc['threshold'], self.logger)
-        self.state = State(self.contract_doc, self.partners_db)
+        self.state = State(self.contract_doc, self.partners_db, navigator)
 
     def close(self):
         self.queue.put(True)
@@ -98,14 +98,14 @@ class Contract:
             self.protocol.update_partners(self.partners)
         return {'reply': 'join success'}
 
-    def consent(self, record, initiate, direct):
+    def consent(self, record, initiate, direct, executioner):
         # if initiate:
         #     return [partner.pid for partner in self.partners]
         if not self.partners or direct:
             self.protocol.record_message(record)
-            reply = [record]
+            reply = executioner([record], direct)
         else:
-            reply = self.protocol.handle_message(record, initiate)
+            reply = self.protocol.handle_message(record, initiate, executioner)
         return reply
 
     def call(self, record, should_log):

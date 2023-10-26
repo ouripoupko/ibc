@@ -28,7 +28,8 @@ class PBFT:
                                'low_mark': 0,
                                'checkpoint': 100,
                                'high_mark': 199,
-                               'block': []}
+                               'block': [],
+                               'sent': []}
         self.requests = self.init_collection(self.db_requests)
         self.blocks = self.init_collection(self.db_blocks)
         self.preparations = self.init_collection(self.db_preparations)
@@ -63,6 +64,15 @@ class PBFT:
         return reply
 
     def update_partners(self, partners):
+        newcomers = [partner for partner in partners if partner.pid not in self.names]
+        for code in self.parameters['sent']:
+            request = self.requests[code]
+            data = {'o': request['record'],
+                    't': request['timestamp'],
+                    'd': code,
+                    'c': request['client']}
+            for partner in newcomers:
+                partner.consent(self.contract_name, ProtocolStep.REQUEST.name, data)
         self.partners = partners
         self.names = [partner.pid for partner in self.partners]
         self.names.append(self.me)
@@ -85,6 +95,7 @@ class PBFT:
                 'd': record['hash_code'],
                 'c': self.me}
         self.store_request(data)
+        self.parameters['sent'] = self.parameters['sent'] + [data['d']]
         for partner in self.partners:
             partner.consent(self.contract_name, ProtocolStep.REQUEST.name, data)
         return data['d']
@@ -119,15 +130,15 @@ class PBFT:
         if hash_code:
             self.parameters['block'] = self.parameters['block'] + [hash_code]
         index = self.parameters['next_index']
-        if index - self.parameters['last_index'] > 5 and len(self.parameters['block']) < 1000:
+        if index > self.parameters['last_index']:  # > 5 and len(self.parameters['block']) < 1000:
             return
         self.parameters['next_index'] = index+1
         block_code = hashlib.sha256(str(self.parameters['block']).encode('utf-8')).hexdigest()
         data = {'v': self.parameters['view'],
                 'n': index,
                 'd': block_code,
-                'l': self.parameters['block']}
-        self.parameters['block'] = []
+                'l': [self.parameters['block'][0]]}
+        self.parameters['block'] = self.parameters['block'][1:]
         for partner in self.partners:
             partner.consent(self.contract_name, ProtocolStep.PRE_PREPARE.name, data)
         self.store_pre_prepare(data)
@@ -153,6 +164,8 @@ class PBFT:
             if key not in self.requests:
                 all_exist = False
                 self.requests[key] = {'missing': data['d']}
+            elif key in self.parameters['sent']:
+                self.parameters['sent'] = [code for code in self.parameters['sent'] if code != key]
         step = ProtocolStep.PREPARE if all_exist else ProtocolStep.PRE_PREPARE
         if data['d'] not in self.preparations:
             self.preparations[data['d']] = {}
@@ -340,7 +353,7 @@ class PBFT:
             self.parameters['checkpoint'] += 100
             self.parameters['high_mark'] += 100
 
-    def handle_message(self, record, initiate):
+    def handle_message(self, record, initiate, executioner):
         self.logger.debug(self.me + ' ' + str(record))
         # check if checkpoint was crossed
         if self.parameters['last_index'] > self.parameters['checkpoint'] and \
@@ -359,7 +372,7 @@ class PBFT:
             data = message['data']
             receiver = self.switcher[step]
             if receiver(data):
-                reply = []
+                reply = {}
                 last_index = self.parameters['last_index']
                 while str(last_index) in self.blocks:
                     hash_code = self.blocks[str(last_index)]['hash']
@@ -369,7 +382,7 @@ class PBFT:
                             request = self.requests[key]
                             stored_record = request['record']
                             stored_record['hash_code'] = key
-                            reply.append(stored_record)
+                            reply = executioner([stored_record], False)
                         last_index += 1
                         self.parameters['last_index'] = last_index
                         if self.parameters['next_index'] - last_index < 4 and self.parameters['block']:

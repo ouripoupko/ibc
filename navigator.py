@@ -58,7 +58,7 @@ class Navigator:
         if hash_code not in self.contracts:
             self.contracts[hash_code] = Contract(self.contracts_db[hash_code], hash_code,
                                                  self.identity, self.identity_doc['address'],
-                                                 self.ledger, self.logger)
+                                                 self, self.ledger, self.logger)
             self.contracts[hash_code].run()
         return self.contracts[hash_code]
 
@@ -89,8 +89,8 @@ class Navigator:
         self.contracts_db[hash_code] = record['message']
         self.contracts[hash_code] = Contract(self.contracts_db[hash_code], hash_code,
                                              self.identity, self.identity_doc['address'],
-                                             self.ledger, self.logger)
-        return self.handle_consent_records(self.contracts[hash_code].consent(record, True, direct), direct)
+                                             self, self.ledger, self.logger)
+        return self.contracts[hash_code].consent(record, True, direct, self.handle_consent_records)
 
     def join_contract(self, record, _direct):
         message = record['message']
@@ -98,7 +98,7 @@ class Navigator:
         partner = Partner(message['address'], message['agent'],
                           self.identity_doc['address'], self.identity, None)
         partner.connect(message['contract'], message['profile'])
-        self.db.setnx(self.identity + message['contract'], "")
+        self.db.setnx(self.identity + message['contract'], json.dumps({'message': 'no reply yet'}))
         return {'reply': message['contract']}
 
     def a2a_connect(self, record, direct):
@@ -109,7 +109,7 @@ class Navigator:
             record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
         if not contract:
             return {'reply': 'contract not found'}
-        return self.handle_consent_records(contract.consent(record, True, direct), direct)
+        return contract.consent(record, True, direct, self.handle_consent_records)
 
     def a2a_reply_join(self, record, _direct):
         # a partner notifies success on join request
@@ -121,7 +121,6 @@ class Navigator:
             records = partner.get_ledger(record['contract'])
             for key in sorted(records.keys()):
                 self.handle_record(records[key], True)
-        print('publish contract join')
         self.db.publish(self.identity, record['contract'])
         self.db.set(self.identity + record['contract'], json.dumps({'status': status}))
         self.db.expire(self.identity + record['contract'], 180)
@@ -145,16 +144,17 @@ class Navigator:
             return {'reply': 'contract not found'}
 
         # see join request on how to record function call output
-        return self.handle_consent_records(contract.consent(record, True, direct), direct)
+        return contract.consent(record, True, direct, self.handle_consent_records)
 
     def get_reply(self, record, _direct):
         # a client request reply of a previous call
-        return json.loads(self.db.get(self.identity + record['message']['reply']))
+        reply = self.db.get(self.identity + record['message']['reply'])
+        return json.loads(reply) if reply else {'message': 'no such record'}
 
     def a2a_consent(self, record, direct):
         # a partner is reporting consensus protocol
         contract = self.get_contract(record['contract'])
-        return self.handle_consent_records(contract.consent(record, False, False), direct)
+        return contract.consent(record, False, direct, self.handle_consent_records)
 
     def a2a_get_ledger(self, record, _direct):
         # a partner asks for a ledger history
