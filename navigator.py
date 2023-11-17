@@ -11,6 +11,9 @@ from contract import Contract
 
 from redis import Redis
 
+class NoContract:
+    pass
+
 class Navigator:
     def __init__(self, identity, one_time, mongo_port, redis_port, logger):
         self.mongo_port = mongo_port
@@ -77,9 +80,11 @@ class Navigator:
         # a client asks for a list of contracts
         return [{key: self.contracts_db[hash_code][key] for key in self.contracts_db[hash_code]
                  if key in ['id', 'name', 'contract', 'code', 'protocol', 'default_app', 'pid', 'address']}
-                for hash_code in self.contracts_db]
+                for hash_code in (self.contracts_db if self.contracts_db else [])]
 
     def deploy_contract(self, record, direct):
+        if self.contracts_db is None:
+            return {'reply': 'no such identity'}
         # a client deploys a contract
         if not direct:
             record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
@@ -93,6 +98,8 @@ class Navigator:
         return self.contracts[hash_code].consent(record, True, direct, self.handle_consent_records)
 
     def join_contract(self, record, _direct):
+        if self.contracts_db is None:
+            return {'reply': 'no such identity'}
         message = record['message']
         record['hash_code'] = message['contract']
         partner = Partner(message['address'], message['agent'],
@@ -104,11 +111,12 @@ class Navigator:
     def a2a_connect(self, record, direct):
         # a partner requests to join
         contract = self.get_contract(record['contract'])
+        if not contract:
+            self.db.lpush('queue'+self.identity, json.dumps(record))
+            return NoContract()
         if not direct:
             record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
             record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
-        if not contract:
-            return {'reply': 'contract not found'}
         return contract.consent(record, True, direct, self.handle_consent_records)
 
     def a2a_reply_join(self, record, _direct):
@@ -120,7 +128,8 @@ class Navigator:
                               self.identity_doc['address'], self.identity, None)
             records = partner.get_ledger(record['contract'])
             for key in sorted(records.keys()):
-                self.handle_record(records[key], True)
+                action = self.actions[records[key]['type']].get(records[key]['action'])
+                action(records[key], True)
         self.db.publish(self.identity, record['contract'])
         self.db.set(self.identity + record['contract'], json.dumps({'status': status}))
         self.db.expire(self.identity + record['contract'], 180)
@@ -130,18 +139,20 @@ class Navigator:
         # a client calls an off chain method
         contract = self.get_contract(record['contract'])
         if not contract:
-            return {'reply': 'contract not found'}
+            self.db.lpush('queue'+self.identity, json.dumps(record))
+            return NoContract()
         else:
             return contract.call(record, False)
 
     def contract_write(self, record, direct):
         # a client is calling a method
         contract = self.get_contract(record['contract'])
+        if not contract:
+            self.db.lpush('queue'+self.identity, json.dumps(record))
+            return NoContract()
         if not direct:
             record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
             record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
-        if not contract:
-            return {'reply': 'contract not found'}
 
         # see join request on how to record function call output
         return contract.consent(record, True, direct, self.handle_consent_records)
@@ -154,17 +165,24 @@ class Navigator:
     def a2a_consent(self, record, direct):
         # a partner is reporting consensus protocol
         contract = self.get_contract(record['contract'])
+        if not contract:
+            self.db.lpush('queue'+self.identity, json.dumps(record))
+            return NoContract()
         return contract.consent(record, False, direct, self.handle_consent_records)
 
     def a2a_get_ledger(self, record, _direct):
         # a partner asks for a ledger history
         index = record['message']['msg']['index']
         contract = self.get_contract(record['contract'])
+        if not contract:
+            self.db.lpush('queue'+self.identity, json.dumps(record))
+            return NoContract()
         return contract.get_ledger(index)
 
     def a2a_disseminate(self, record, _direct):
         original = record['message']['msg']['record']
-        self.handle_record(original, True)
+        action = self.actions[original['type']].get(original['action'])
+        action(original, True)
         return {}
 
     def handle_consent_records(self, records, direct):
@@ -182,20 +200,28 @@ class Navigator:
                 self.db.publish(self.identity, record['contract'])
         return reply
 
-    def handle_record(self, record, direct=False):
+    def handle_record(self, record):
         # mutex per identity
-        if not direct:
-            attempts = 0
-            while not self.db.setnx(self.identity, 'locked'):
-                time.sleep(0.01)
-                attempts += 1
-                if attempts > 10000:  # 100 seconds
-                    return {'reply': 'timeout - could not lock mutex'}
-            self.open()
+        attempts = 0
+        while not self.db.setnx('lock' + self.identity, 'locked'):
+            time.sleep(0.01)
+            attempts += 1
+            if attempts > 10000:  # 100 seconds
+                return {'reply': 'timeout - could not lock mutex'}
+        self.open()
 
-        action = self.actions[record['type']].get(record['action'])
-        reply = action(record, direct)
-        if not direct:
-            self.close()
-            self.db.delete(self.identity)
+        while record:
+            action = self.actions[record['type']].get(record['action'])
+            reply = action(record, False)
+            if isinstance(reply, NoContract):
+                self.logger.info('just put a record in a queue: ' + record)
+                reply = {'reply': 'contract not found'}
+                break
+            record_str = self.db.rpop('queue' + self.identity)
+            record = json.loads(record_str) if record_str else None
+            if record:
+                self.logger.info('just took a record out of queue: ' + record)
+
+        self.close()
+        self.db.delete('lock' + self.identity)
         return reply
