@@ -3,13 +3,18 @@ from bson.objectid import ObjectId
 import uuid
 
 
+class WritePermissionException(Exception):
+    pass
+
 class DBBridge:
     def __init__(self, logger):
         self.connection = None
         self.logger = logger
+        self.allow_write = False
 
-    def connect(self, port):
+    def connect(self, port, allow_write = False):
         self.connection = MongoClient(port=int(port))
+        self.allow_write = allow_write
         return self
 
     def disconnect(self):
@@ -17,24 +22,29 @@ class DBBridge:
 
     def get_root_collection(self):
         db = self.connection['ibc']
-        return Collection(db, db['agents'])
+        return Collection(db, db['agents'], self.allow_write)
 
 
 class Collection:
     """Storage behaves like a list of dicts with persistence over MongoDB"""
 
-    def __init__(self, db, collection):
+    def __init__(self, db, collection, allow_write):
         self.db = db
         self.collection = collection
+        self.allow_write = allow_write
 
     def __getitem__(self, key):
         return Document(self, key)
 
     def __setitem__(self, key, value):
+        if not self.allow_write:
+            raise WritePermissionException()
         value['_id'] = key
         self.collection.update_one({'_id': key}, {'$set': value}, upsert=True)
 
     def __delitem__(self, key):
+        if not self.allow_write:
+            raise WritePermissionException()
         if self.collection.find_one({'_id': key}):
             self.collection.delete_one({'_id': key})
         else:
@@ -51,6 +61,8 @@ class Collection:
         return self.collection.count_documents({})
 
     def store(self, collection):
+        if not self.allow_write:
+            raise WritePermissionException()
         for key in collection:
             collection[key]['_id'] = key
         self.collection.delete_many({})
@@ -58,6 +70,8 @@ class Collection:
             self.collection.insert_many(collection.values())
 
     def append(self, item):
+        if not self.allow_write:
+            raise WritePermissionException()
         result = self.collection.insert_one(item)
         return str(result.inserted_id)
 
@@ -98,9 +112,13 @@ class Document:
         return document.get(key)
 
     def __setitem__(self, key, value):
+        if not self.storage.allow_write:
+            raise WritePermissionException()
         self.storage[self.key] = {key: value}
 
     def __delitem__(self, key):
+        if not self.storage.allow_write:
+            raise WritePermissionException()
         self.storage.collection.update_one({'_id': self.key}, {'$unset': {key: ''}})
 
     def __contains__(self, item):
@@ -110,6 +128,8 @@ class Document:
         return iter(self.storage.collection.find_one({'_id': self.key}))
 
     def create_sub_collection(self, name):
+        if not self.storage.allow_write:
+            raise WritePermissionException()
         uid = str(uuid.uuid4())
         self.storage[self.key] = {name: uid}
 
@@ -120,7 +140,7 @@ class Document:
             document = self.storage.collection.find_one({'_id': self.key})
         db = self.storage.db
         uid = document[name]
-        return Collection(self.storage.db, db[uid])
+        return Collection(self.storage.db, db[uid], self.storage.allow_write)
 
     def get_key(self):
         return self.key
@@ -132,6 +152,8 @@ class Document:
         return reply
 
     def update(self, value):
+        if not self.storage.allow_write:
+            raise WritePermissionException()
         self.storage.collection.update_one({'_id': self.key}, {'$set': value}, upsert=True)
 
     def exists(self):

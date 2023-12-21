@@ -1,9 +1,0 @@
-<div>
-    <h4>{{method}}</h4>
-    <label *ngFor="let argument of arguments; let i=index">{{argument}}:
-        <input [(ngModel)]="values[i]" />
-    </label>
-    <button (click)="call()">
-        call
-    </button>
-</div>

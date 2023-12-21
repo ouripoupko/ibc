@@ -7,6 +7,8 @@ from flask import Flask, request, send_from_directory, render_template, jsonify,
 from flask_cors import CORS
 from redis import Redis
 
+import my_timer
+
 from navigator import Navigator
 
 # Create the application instance
@@ -19,25 +21,6 @@ logger = app.logger
 port = None
 mongo_port = 27017
 redis_port = 6379
-
-
-@app.route('/favicon.ico')
-def favicon():
-    return send_from_directory(app.root_path,
-                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
-
-
-@app.route('/', methods=['GET'])
-@app.route('/ibc/', methods=['GET'])
-def view():  # pragma: no cover
-    return render_template('index.html')
-#    f = open('ui.html', 'r')
-#    f = open('ibc-client/index.html', 'r')
-#    content = f.read()
-#    f.close()
-#    return Response(content, mimetype="text/html")
-
-
 operator = None
 
 
@@ -70,7 +53,9 @@ def ibc_handler(identity, contract, method):
         this_operator = Navigator(identity, True, mongo_port, redis_port, logger)
     response = jsonify(this_operator.handle_record(record))
     response.headers.add('Access-Control-Allow-Origin', '*')
-    logger.info('response ' + log_id+ ': ' + str(response.get_json()))
+    logger.warning('response ' + log_id+ ': ' + str(response.get_json()))
+    if identity == 'terminator':
+        my_timer.report()
     return response
 
 
@@ -127,7 +112,7 @@ if __name__ == '__main__':
     logging.basicConfig(**conf_kwargs)
 
     logger = logging.getLogger('werkzeug')
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.WARNING)
     # app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     # turning operator from None to empty dict triggers memory cache when using flask directly, without gunicorn
 #    operator = {}

@@ -1,64 +1,123 @@
 import requests
-from time import sleep, time
-from os import listdir
-from sseclient import SSEClient
-from threading import Thread, Semaphore
 
-servers = ['http://' + f + '/' for f in listdir('../var/instances/')]
-# servers = [f'http://localhost:{str(i)}/' for i in range(5001,5011)]
-contract = 'deliberation'
-transaction = 'create_statement'
-iterations = 100
-
-locks = [Semaphore(0) for s in servers]
-start = time()
-started = False
-
-output = open('results.txt','w')
-
-def listener(local_index):
-    counter = 0
-    messages = SSEClient(f'{servers[local_index]}stream/agent_{str(local_index).zfill(5)}/{contract}')
-    for msg in messages:
-        if msg.data == 'True':
-            if not started or local_index == 0:
-                output.write(f'a message received from the server {local_index} {counter} {time()-start}\n')
-            if started:
-                counter += 1
-            locks[local_index].release()
-            if counter == iterations:
-                if local_index == 0:
-                    output.close()
-                break
-
-for index in range(len(servers)):
-    Thread(target=listener, args=(index,)).start()
-
-for index, address in enumerate(servers):
-    requests.post(f'{address}ibc/app/agent_{str(index).zfill(5)}')
-
-f = open(f'{contract}.py', 'r')
-requests.post(f'{servers[0]}ibc/app/agent_00000/{contract}',
-              json={'pid': 'agent_00000', 'address': servers[0], 'code': f.read()})
+server = 'http://localhost:5001'
+agents = [f'agent_{str(index).zfill(5)}' for index in range(10)]
+f = open('delib.py', 'r')
+contract_code = f.read()
 f.close()
 
-for index in range(1, len(servers)):
-    address = servers[index]
-    url = f'{address}ibc/app/agent_{str(index).zfill(5)}/{contract}'
-    json = {'pid': 'agent_00000', 'address': servers[0]}
-    requests.post(url, json=json)
-    locks[index].acquire()
-    sleep(2+index/100)
+for agent in agents:
+    requests.put(f'{server}/ibc/app/{agent}',
+                 params={'action': 'register_agent'},
+                 json={})
 
-output.write(f'starting to send transactions {time()-start}\n')
-started = True
+reply = requests.put(f'{server}/ibc/app/{agents[0]}',
+                     params={'action': 'deploy_contract'},
+                     json={'address': 'http://localhost:5001/',
+                           'pid': agents[0],
+                           'name': 'delib',
+                           'protocol': 'BFT',
+                           'default_app': 'http://localhost:4201',
+                           'contract': 'delib.py',
+                           'profile': '',
+                           'constructor': {},
+                           'code': contract_code})
+contract = reply.json()
+print(contract)
 
-for index in range(iterations):
-    agent = index % len(servers)
-    requests.put(f'{servers[agent]}ibc/app/agent_{str(agent).zfill(5)}/{contract}/{transaction}',
-                 json={'name': transaction,
-                       'values': {'parents': [],
-                                  'text': f'statement_{str(index).zfill(3)}',
-                                  'tags': []}})
+for agent in agents[1:]:
+    requests.put(f'{server}/ibc/app/{agent}',
+                 params={'action': 'join_contract'},
+                 json={'address': f'{server}/',
+                       'agent': agents[0],
+                       'contract': contract,
+                       'profile': ''})
 
-# requests.post(f'http://localhost:5001/ibc/app/agent_{str(666).zfill(5)}')
+
+requests.post(f'{server}/ibc/app/{agents[0]}/{contract}/create_statement',
+              params={'action': 'contract_write'},
+              json={'name': 'create_statement',
+                    'values': {'parent': None, 'text': 'Hello World'}})
+
+wait = input()
+
+for agent in agents:
+    reply = requests.post(f'{server}/ibc/app/{agent}/{contract}/get_statements',
+              params={'action': 'contract_read'},
+              json={'name': 'get_statements',
+                    'values': {'parent': None}})
+    print(agent)
+    print(reply.json())
+
+
+requests.put(f'{server}/ibc/app/terminator',
+             params={'action': 'register_agent'},
+             json={})
+
+
+#
+# requests.post(f'{server}/ibc/app/{alice}/{me_a}/set_value',
+#               params={'action': 'contract_write'},
+#               json={'name': 'set_value',
+#                     'values': {'key': 'last_name', 'value': 'Wonderland'}})
+#
+# reply = requests.put(f'{server}/ibc/app/{alice}',
+#                      params={'action': 'deploy_contract'},
+#                      json={'address': 'http://localhost:5001/',
+#                            'pid': alice,
+#                            'name': 'my_wall_a',
+#                            'protocol': 'BFT',
+#                            'default_app': 'http://localhost:4202',
+#                            'contract': 'sn_person.py',
+#                            'profile': me_a,
+#                            'code': sn_person})
+# my_wall_a = reply.json()
+#
+# requests.post(f'{server}/ibc/app/{alice}/{my_wall_a}/create_post',
+#               params={'action': 'contract_write'},
+#               json={'name': 'create_post',
+#                     'values': {'text': 'Alice is having a wonderful day'}})
+#
+# requests.put(f'{server}/ibc/app/{bob}',
+#               params={'action': 'register_agent'},
+#               json={})
+#
+# reply = requests.put(f'{server}/ibc/app/{bob}',
+#                      params={'action': 'deploy_contract'},
+#                      json={'address': 'http://localhost:5001/',
+#                            'pid': bob,
+#                            'name': 'me_b',
+#                            'protocol': 'BFT',
+#                            'default_app': 'http://localhost:4201',
+#                            'contract': 'profile.py',
+#                            'profile': '',
+#                            'code': profile})
+# me_b = reply.json()
+#
+# requests.post(f'{server}/ibc/app/{bob}/{me_b}/set_value',
+#               params={'action': 'contract_write'},
+#               json={'name': 'set_value',
+#                     'values': {'key': 'first_name', 'value': 'Bob'}})
+#
+# requests.post(f'{server}/ibc/app/{bob}/{me_b}/set_value',
+#               params={'action': 'contract_write'},
+#               json={'name': 'set_value',
+#                     'values': {'key': 'last_name', 'value': 'Fisher'}})
+#
+# reply = requests.put(f'{server}/ibc/app/{bob}',
+#                      params={'action': 'deploy_contract'},
+#                      json={'address': 'http://localhost:5001/',
+#                            'pid': bob,
+#                            'name': 'my_wall_b',
+#                            'protocol': 'BFT',
+#                            'default_app': 'http://localhost:4202',
+#                            'contract': 'sn_person.py',
+#                            'profile': me_b,
+#                            'code': sn_person})
+# my_wall_b = reply.json()
+#
+# requests.post(f'{server}/ibc/app/{bob}/{my_wall_b}/create_post',
+#               params={'action': 'contract_write'},
+#               json={'name': 'create_post',
+#                     'values': {'text': 'Bob is having fun tonight'}})
+#
