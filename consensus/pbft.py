@@ -1,6 +1,8 @@
 from enum import Enum, auto
 import hashlib
+import json
 from redis_json import RedisJson
+from redis import Redis
 from partner import Partner
 
 class ProtocolStep(Enum):
@@ -60,7 +62,6 @@ class PBFT:
         return reply
 
     def store_request(self, data):
-        print(self.me, data)
         all_exist = False
         block_code = None
         if data['d'] in self.db.object_keys('requests'):
@@ -313,7 +314,7 @@ class PBFT:
             self.parameters['high_mark'] += 100
         self.db.set('parameters', self.parameters)
 
-    def handle_message(self, record, initiate, me_partner: Partner):
+    def handle_message(self, record, initiate, executioners: Redis):
         # self.logger.debug(self.me + ' ' + str(record))
         reply = False
         # check if checkpoint was crossed
@@ -342,7 +343,9 @@ class PBFT:
                             request = self.db.get(f'requests.{key}')
                             stored_record = request['record']
                             stored_record['hash_code'] = key
-                            me_partner.post_consent(self.contract_name, stored_record)
+                            executioners.lpush('executioners', json.dumps(self.me))
+                            executioners.lpush('records_' + self.me, json.dumps(message['record']))
+                            print(self.me, 'from pbft to execution', message['record']['action'])
                             reply = True
                         last_index += 1
                         self.parameters['last_index'] = last_index

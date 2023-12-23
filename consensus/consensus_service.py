@@ -1,14 +1,26 @@
 from redis import Redis
 import json
-import os
+from queue import Queue
 
-from contract_dialog import ContractDialog
+from consensus_navigator import ConsensusNavigator
 
 redis_port = 6379
 
 if __name__ == '__main__':
-    db = Redis(host='localhost', port=redis_port, db=2)
+    db = Redis(host='localhost', port=redis_port, db=0)
+    queues = {}
+    navigators = {}
     while True:
-        message = json.loads(db.brpop(['communicators'])[1])
-        ContractDialog(message['identity'], os.getenv('MY_ADDRESS'),
-                       message['contract'], message['protocol'], redis_port).start()
+        channel, record = db.brpop(['consensus', 'consensus_direct', 'consensus_release'])
+        channel = channel.decode("utf-8")
+        record = json.loads(record)
+        agent = record['agent']
+        if agent not in queues:
+            queues[agent] = (Queue(), Queue())
+        if channel == 'consensus_release':
+            queues[agent][1].put(record)
+        else:
+            queues[agent][0].put((record, channel == 'consensus_direct'))
+        if agent not in navigators or not navigators[agent].is_alive():
+            navigators[agent] = ConsensusNavigator(agent, queues[agent], redis_port, None)
+            navigators[agent].start()

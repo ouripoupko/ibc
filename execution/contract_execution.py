@@ -1,12 +1,7 @@
-import json
-
 from partner import Partner
-from nakamoto import Nakamoto
-from dissemination import Dissemination
 from queue import Queue
 from threading import Thread
 from state import State
-from redis import Redis
 
 import my_timer
 
@@ -19,7 +14,7 @@ def sender(queue):
 
 
 class ContractExecution:
-    def __init__(self, contract_doc, hash_code, me, my_address, navigator, ledger, logger, redis_port):
+    def __init__(self, contract_doc, hash_code, me, my_address, navigator, ledger, logger):
         previous = my_timer.start()
         # the database
         self.contract_doc = contract_doc
@@ -30,41 +25,13 @@ class ContractExecution:
         self.ledger = ledger
         self.logger = logger
         self.queue = Queue()
-        self.redis = Redis(host='localhost', port=redis_port, db=2)
         Thread(target=sender, args=(self.queue,), daemon=True).start()
         my_timer.stop(self.me + '_init1', previous)
         # the partners
-        self.partners = []
         self.partners_db = self.contract_doc.get_sub_collection('pda_partners')
         my_timer.stop(self.me + '_init2', previous)
-        for key in self.partners_db:
-            if key != me:
-                self.partners.append(Partner(self.partners_db[key]['address'], key, my_address, me, self.queue))
         # consensus protocols
         my_timer.stop(self.me + '_init3', previous)
-        self.protocol_storage = self.contract_doc.get_sub_collection('pda_protocols')
-        self.protocol = None
-        my_timer.stop(self.me + '_init4', previous)
-        protocol_name = self.contract_doc['protocol']
-        if protocol_name == 'POW':
-            self.protocol = Nakamoto(self.protocol_storage, self.hash_code, self.me, self.partners, self.logger)
-        elif protocol_name == 'BFT':
-            my_timer.stop(self.me + '_init5', previous)
-        elif protocol_name == 'Dissemination':
-            self.partners = []
-            group = self.contract_doc['group']
-            if isinstance(group, list):
-                for member in group:
-                    member_dict = None
-                    try:
-                        member_dict = json.loads(member)
-                    except (Exception,):
-                        continue
-                    if member_dict and 'address' in member_dict and 'agent' in member_dict:
-                        self.partners.append(Partner(member_dict['address'], member_dict['agent'],
-                                                     my_address, me, self.queue))
-            self.protocol = Dissemination(self.protocol_storage, self.hash_code, self.me,
-                                          self.partners, self.contract_doc['threshold'], self.logger)
         self.state = State(self.contract_doc, self.partners_db, navigator)
         my_timer.stop(self.me + '_init6', previous)
 
@@ -90,6 +57,7 @@ class ContractExecution:
             my_timer.stop(self.me + '_run', previous)
 
     def join(self, record):
+        reply = False
         previous = my_timer.start()
         self.ledger.log(record)
         message = record['message']
@@ -99,21 +67,21 @@ class ContractExecution:
                                  {'values': {'partner': msg['pid']}},
                                  record.get('timestamp', None))
         if approve:
-            self.connect(msg['address'], msg['pid'], msg['profile'])
+            reply = self.connect(msg['address'], msg['pid'], msg['profile'])
         if message['to'] == self.me:
             partner = Partner(msg['address'], msg['pid'], self.my_address, self.me, self.queue)
             partner.reply_join(self.hash_code, approve)
+            print(self.me, 'reply on join request', approve)
         my_timer.stop(self.me + '_join', previous)
-        return {'reply': approve}
+        return reply
 
     def connect(self, address, pid, profile):
+        reply = False
         self.partners_db[pid] = {'address': address, 'profile': profile}
         if pid != self.me:
-            partner = Partner(address, pid, self.my_address, self.me, self.queue)
-            self.redis.lpush('partner' + self.me + self.hash_code,
-                             json.dumps({'partner': pid, 'address': address}))
-            self.partners.append(partner)
-        return {'reply': 'join success'}
+            reply = True
+            print(self.me, 'adding new partner', pid)
+        return reply
 
     def call(self, record, should_log):
         previous = my_timer.start()
@@ -121,12 +89,3 @@ class ContractExecution:
             self.ledger.log(record)
         my_timer.stop(self.me + '_call', previous)
         return self.state.call(record['agent'], record['method'], record['message'], record.get('timestamp', None))
-
-    def get_ledger(self, index):
-        previous = my_timer.start()
-        reply = self.ledger.get(self.hash_code)
-        if index > 0:
-            reply = reply[index]
-        my_timer.stop(self.me + '_get_ledger', previous)
-        return reply
-

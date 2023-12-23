@@ -21,7 +21,6 @@ logger = app.logger
 port = None
 mongo_port = 27017
 redis_port = 6379
-operator = None
 
 
 # Create a URL route in our application for contracts
@@ -43,17 +42,10 @@ def ibc_handler(identity, contract, method):
               'agent': identity}
     log_id = str(random.random())[2:8]
     logger.info('record ' + log_id+ ': ' + str(record))
-    if isinstance(operator, dict):
-        if identity in operator:
-            this_operator = operator[identity]
-        else:
-            this_operator = Navigator(identity, False, mongo_port, redis_port, logger)
-            operator[identity] = this_operator
-    else:
-        this_operator = Navigator(identity, True, mongo_port, redis_port, logger)
-    response = jsonify(this_operator.handle_record(record))
+    navigator = Navigator(identity, mongo_port, redis_port, logger)
+    response = jsonify(navigator.handle_record(record))
     response.headers.add('Access-Control-Allow-Origin', '*')
-    logger.warning('response ' + log_id+ ': ' + str(response.get_json()))
+    logger.info('response ' + log_id+ ': ' + str(response.get_json()))
     if identity == 'terminator':
         my_timer.report()
     return response
@@ -114,6 +106,4 @@ if __name__ == '__main__':
     logger = logging.getLogger('werkzeug')
     logger.setLevel(logging.WARNING)
     # app.wsgi_app = LoggingMiddleware(app.wsgi_app)
-    # turning operator from None to empty dict triggers memory cache when using flask directly, without gunicorn
-#    operator = {}
     app.run(host='0.0.0.0', port=port, use_reloader=False)  # , threaded=False)

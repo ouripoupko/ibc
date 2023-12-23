@@ -5,38 +5,31 @@ import os
 
 from partner import Partner
 from execution.blockchain import BlockChain
-from mongodb_storage import DBBridge
-from contract_execution import ContractExecution
 
 import my_timer
 
 from redis import Redis
 
-class ExecutionNavigator(Thread):
-    def __init__(self, identity, queue: Queue, mongo_port, redis_port, logger):
+class ConsensusNavigator(Thread):
+    def __init__(self, identity, queue, redis_port, logger):
         self.identity = identity
-        self.queue = queue
-        self.mongo_port = mongo_port
         self.redis_port = redis_port
         self.logger = logger
+        self.main_queue = queue[0]
+        self.release_queue = queue[1]
         self.db = Redis(host='localhost', port=redis_port, db=0)
         self.actions = {'PUT':  {'register_agent': self.register_agent,
                                  'deploy_contract': self.deploy_contract,
                                  'a2a_connect': self.a2a_connect,
-                                 'a2a_reply_join': self.a2a_reply_join},
+                                 'a2a_reply_join': self.a2a_reply_join,
+                                 'a2a_disseminate': self.a2a_disseminate},
                         'POST': {'contract_write': self.contract_write}}
         self.contracts = {}
-        self.storage_bridge = DBBridge(self.logger).connect(self.mongo_port, allow_write=True)
-        self.agents = self.storage_bridge.get_root_collection()
-        self.identity_doc = self.agents[self.identity]
-        self.contracts_db = self.identity_doc.get_sub_collection('contracts') if self.identity_doc.exists() else None
-        self.ledger = BlockChain(self.identity_doc, self.logger) if self.identity_doc.exists() else None
         super().__init__()
 
     def __del__(self):
         for contract in self.contracts.values():
             contract.close()
-        self.storage_bridge.disconnect()
         self.db.close()
 
     def get_contract(self, hash_code):
@@ -66,11 +59,13 @@ class ExecutionNavigator(Thread):
                                      self.identity, self.identity_doc['address'],
                                      self, self.ledger, self.logger, self.redis_port)
         self.contracts[hash_code] = contract
-        contract.create(record)
         if not direct:
             self.db.publish(self.identity, record['contract'])
-            self.db.lpush('consensus', json.dumps(record))
-            print(self.identity, 'execution notifies communicator on deploy contract', record['hash_code'])
+        contract.create(record)
+        print(self.identity, 'execution notifies communicator on deploy contract', record['hash_code'])
+        self.communicators.lpush('communicators', json.dumps({'identity': self.identity,
+                                                              'contract': record['hash_code'],
+                                                              'protocol': record['message']['protocol']}))
 
     def a2a_reply_join(self, record, _direct):
         # a partner notifies success on join request
@@ -82,29 +77,41 @@ class ExecutionNavigator(Thread):
             records = partner.get_ledger(record['contract'])
             for key in sorted(records.keys()):
                 action = self.actions[records[key]['type']].get(records[key]['action'])
-                self.db.lpush('consensus_direct', json.dumps(record))
                 action(records[key], True)
         self.db.publish(self.identity, record['contract'])
         return {}
 
     def a2a_connect(self, record, direct):
         contract = self.get_contract(record['contract'])
-        record['status'] = contract.join(record)
-        self.db.lpush('consensus_release', json.dumps(record))
+        if not contract:
+            return {'message': 'no such contract'}
+        reply = contract.join(record)
         if not direct:
             self.db.publish(self.identity, record['contract'])
+        return reply
 
     def contract_write(self, record, direct):
         contract = self.get_contract(record['contract'])
+        if not contract:
+            return {'message': 'no such contract'}
         contract.call(record, True)
         if not direct:
             self.db.publish(self.identity, record['contract'])
+        return {}
+
+    def a2a_disseminate(self, record, _direct):
+        original = record['message']['msg']['record']
+        action = self.actions[original['type']].get(original['action'])
+        action(original, True)
+        return {}
 
     def run(self):
         while True:
             try:
-                record = self.queue.get(timeout=60)
+                record, direct = self.main_queue.get(timeout=60)
             except Empty:
                 break
             action = self.actions[record['type']].get(record['action'])
-            action(record, False)
+            action(record, direct)
+            if record['action'] == 'a2a_connect':
+                record = self.release_queue.get()

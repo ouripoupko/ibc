@@ -39,11 +39,3 @@ class Partner:
                         'json': {'from': self.me, 'to': self.pid,
                                  'msg': {'step': step, 'data': data}}})
         return {'reply': 'message sent to partner'}
-
-    def disseminate(self, record):
-        self.queue.put({'func': requests.put,
-                        'url': self.address + 'ibc/app/' + self.pid,
-                        'params': {'action': 'a2a_disseminate'},
-                        'json': {'from': self.me, 'to': self.pid,
-                                 'msg': {'record': record}}})
-        return {'reply': 'record sent to partner'}

@@ -1,5 +1,6 @@
 from redis import Redis
 import json
+from queue import Queue
 
 from execution_navigator import ExecutionNavigator
 
@@ -9,12 +10,16 @@ redis_port = 6379
 if __name__ == '__main__':
     logger = None
     db = Redis(host='localhost', port=redis_port, db=3)
-    navigator = {}
+    navigators = {}
+    queues = {}
     while True:
-        message = db.brpop(['executioners'])[1]
-        print('message', message)
-        agent = json.loads(message)
-        print('agent', agent)
-        if agent not in navigator:
-            navigator[agent] = ExecutionNavigator(agent, mongo_port, redis_port, logger)
-            navigator[agent].start()
+        record = json.loads(db.brpop(['execution'])[1])
+        agent = record['agent']
+        if agent not in queues:
+            queues[agent] = Queue()
+        queues[agent].put(record)
+        if agent not in navigators or not navigators[agent].is_alive():
+            if agent in navigators:
+                raise Exception('I need to check if need to call delete')
+            navigators[agent] = ExecutionNavigator(agent, queues[agent], mongo_port, redis_port, None)
+            navigators[agent].start()
