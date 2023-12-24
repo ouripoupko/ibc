@@ -121,4 +121,4 @@ class Navigator:
 
     def handle_record(self, record):
         action = self.actions[record['type']].get(record['action'])
-        return action(record, False)
+        return action(record)

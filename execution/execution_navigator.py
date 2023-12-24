@@ -64,7 +64,7 @@ class ExecutionNavigator(Thread):
         self.contracts_db[hash_code] = record['message']
         contract = ContractExecution(self.contracts_db[hash_code], hash_code,
                                      self.identity, self.identity_doc['address'],
-                                     self, self.ledger, self.logger, self.redis_port)
+                                     self, self.ledger, self.logger)
         self.contracts[hash_code] = contract
         contract.create(record)
         if not direct:

@@ -16,11 +16,8 @@ if __name__ == '__main__':
         record = json.loads(record)
         agent = record['agent']
         if agent not in queues:
-            queues[agent] = (Queue(), Queue())
-        if channel == 'consensus_release':
-            queues[agent][1].put(record)
-        else:
-            queues[agent][0].put((record, channel == 'consensus_direct'))
+            queues[agent] = Queue()
+        queues[agent].put((record, channel == 'consensus_direct', channel == 'consensus_release'))
         if agent not in navigators or not navigators[agent].is_alive():
             navigators[agent] = ConsensusNavigator(agent, queues[agent], redis_port, None)
             navigators[agent].start()

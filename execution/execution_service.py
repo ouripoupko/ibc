@@ -9,12 +9,13 @@ redis_port = 6379
 
 if __name__ == '__main__':
     logger = None
-    db = Redis(host='localhost', port=redis_port, db=3)
+    db = Redis(host='localhost', port=redis_port, db=0)
     navigators = {}
     queues = {}
     while True:
         record = json.loads(db.brpop(['execution'])[1])
         agent = record['agent']
+        print(agent, record['action'])
         if agent not in queues:
             queues[agent] = Queue()
         queues[agent].put(record)

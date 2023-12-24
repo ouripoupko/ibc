@@ -85,8 +85,8 @@ class PBFT:
         if hash_code:
             self.parameters['block'].append(hash_code)
         index = self.parameters['next_index']
-        if index > self.parameters['last_index']:  # > 5 and len(self.parameters['block']) < 1000:
-            return
+        if index - self.parameters['last_index'] > 5 and len(self.parameters['block']) < 1000:
+            return False
         self.parameters['next_index'] = index+1
         block_code = hashlib.sha256(str(self.parameters['block']).encode('utf-8')).hexdigest()
         data = {'v': self.parameters['view'],
@@ -96,6 +96,7 @@ class PBFT:
         for partner in self.partners:
             partner.consent(self.contract_name, ProtocolStep.PRE_PREPARE.name, data)
         self.store_pre_prepare(data)
+        return True
 
     def receive_pre_prepare(self, data):
         # I should check signatures and digest, but I am lazy
@@ -327,7 +328,7 @@ class PBFT:
         if initiate:
             hash_code = self.send_request(record)
             if self.leader_is_me():
-                self.send_pre_prepare(hash_code)
+                reply = self.send_pre_prepare(hash_code)
         else:
             message = record['message']['msg']
             step = ProtocolStep[message['step']]
@@ -346,11 +347,12 @@ class PBFT:
                             executioners.lpush('executioners', json.dumps(self.me))
                             executioners.lpush('records_' + self.me, json.dumps(message['record']))
                             print(self.me, 'from pbft to execution', message['record']['action'])
-                            reply = True
                         last_index += 1
                         self.parameters['last_index'] = last_index
                         if self.parameters['next_index'] - last_index < 4 and self.parameters['block']:
-                            self.send_pre_prepare(None)
+                            reply = self.send_pre_prepare(None)
+                            if reply:
+                                break
                     else:
                         break
         self.db.set('parameters', self.parameters)
