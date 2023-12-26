@@ -62,7 +62,7 @@ class Navigator:
         return reply
 
     def send_to_execution(self, record):
-        self.db.lpush('execution', json.dumps(record))
+        self.db.lpush('execution', json.dumps((self.identity, record)))
         print(self.identity, 'send to execution', record['action'])
         return None
 
@@ -78,7 +78,7 @@ class Navigator:
         record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
         record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
         record['contract'] = record['hash_code']
-        self.send_to_execution(record)
+        self.send_to_consensus(record)
         return record['hash_code']
 
     def join_contract(self, record):
@@ -95,8 +95,8 @@ class Navigator:
         self.send_to_consensus(record)
 
     def send_to_consensus(self, record):
-        self.db.lpush('execution', json.dumps(record))
-        print(self.identity, 'sent to consensus', record['action'], record['hash_code'])
+        self.db.lpush('consensus', json.dumps((self.identity, record)))
+        print(self.identity, 'sent to consensus', record['action'])
         return None
 
     def contract_read(self, record):

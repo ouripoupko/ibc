@@ -11,10 +11,10 @@ if __name__ == '__main__':
     queues = {}
     navigators = {}
     while True:
-        channel, record = db.brpop(['consensus', 'consensus_direct', 'consensus_release'])
+        channel, payload = db.brpop(['consensus', 'consensus_direct', 'consensus_release'])
         channel = channel.decode("utf-8")
-        record = json.loads(record)
-        agent = record['agent']
+        agent, record = json.loads(payload)
+        print(channel.ljust(17), agent, record)
         if agent not in queues:
             queues[agent] = Queue()
         queues[agent].put((record, channel == 'consensus_direct', channel == 'consensus_release'))

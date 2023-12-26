@@ -69,8 +69,6 @@ class ExecutionNavigator(Thread):
         contract.create(record)
         if not direct:
             self.db.publish(self.identity, record['contract'])
-            self.db.lpush('consensus', json.dumps(record))
-            print(self.identity, 'execution notifies communicator on deploy contract', record['hash_code'])
 
     def a2a_reply_join(self, record, _direct):
         # a partner notifies success on join request
@@ -82,7 +80,7 @@ class ExecutionNavigator(Thread):
             records = partner.get_ledger(record['contract'])
             for key in sorted(records.keys()):
                 action = self.actions[records[key]['type']].get(records[key]['action'])
-                self.db.lpush('consensus_direct', json.dumps(record))
+                self.db.lpush('consensus_direct', json.dumps((self.identity, records[key])))
                 action(records[key], True)
         self.db.publish(self.identity, record['contract'])
         return {}
@@ -90,7 +88,7 @@ class ExecutionNavigator(Thread):
     def a2a_connect(self, record, direct):
         contract = self.get_contract(record['contract'])
         record['status'] = contract.join(record)
-        self.db.lpush('consensus_release', json.dumps(record))
+        self.db.lpush('consensus_release', json.dumps((self.identity, record)))
         if not direct:
             self.db.publish(self.identity, record['contract'])
 

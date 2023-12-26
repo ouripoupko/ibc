@@ -315,7 +315,7 @@ class PBFT:
             self.parameters['high_mark'] += 100
         self.db.set('parameters', self.parameters)
 
-    def handle_message(self, record, initiate, executioners: Redis):
+    def handle_message(self, record, executioners: Redis):
         # self.logger.debug(self.me + ' ' + str(record))
         reply = False
         # check if checkpoint was crossed
@@ -325,7 +325,7 @@ class PBFT:
         # check if me am behind
         if self.parameters['last_index'] < self.parameters['low_mark']:
             self.catchup()
-        if initiate:
+        if not record['action'] == 'a2a_consent':
             hash_code = self.send_request(record)
             if self.leader_is_me():
                 reply = self.send_pre_prepare(hash_code)
@@ -344,8 +344,7 @@ class PBFT:
                             request = self.db.get(f'requests.{key}')
                             stored_record = request['record']
                             stored_record['hash_code'] = key
-                            executioners.lpush('executioners', json.dumps(self.me))
-                            executioners.lpush('records_' + self.me, json.dumps(message['record']))
+                            executioners.lpush('execution', json.dumps(self.me, message['record']))
                             print(self.me, 'from pbft to execution', message['record']['action'])
                         last_index += 1
                         self.parameters['last_index'] = last_index

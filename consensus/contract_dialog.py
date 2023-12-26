@@ -57,7 +57,7 @@ class ContractDialog:
         if not self.partners or direct:
             self.protocol.record_message(record)
             reply = True
-            self.db0.lpush('execution', json.dumps(record))
+            self.db0.lpush('execution', json.dumps((self.identity, record)))
         else:
             reply = self.protocol.handle_message(record, self.db0)
         return reply

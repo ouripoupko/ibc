@@ -13,8 +13,7 @@ if __name__ == '__main__':
     navigators = {}
     queues = {}
     while True:
-        record = json.loads(db.brpop(['execution'])[1])
-        agent = record['agent']
+        agent, record = json.loads(db.brpop(['execution'])[1])
         print(agent, record['action'])
         if agent not in queues:
             queues[agent] = Queue()
