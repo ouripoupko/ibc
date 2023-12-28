@@ -22,11 +22,11 @@ class Navigator:
         self.db = Redis(host='localhost', port=redis_port, db=0)
         self.actions = {'GET':  {'is_exist_agent': self.is_exist_agent,
                                  'get_contracts': self.get_contracts},
-                        'PUT':  {'register_agent': self.send_to_execution,
+                        'PUT':  {'register_agent': self.register_agent,
                                  'deploy_contract': self.deploy_contract,
                                  'join_contract': self.join_contract,
                                  'a2a_connect': self.stamp_to_consensus,
-                                 'a2a_reply_join': self.send_to_execution,
+                                 'a2a_reply_join': self.send_to_consensus,
                                  'a2a_consent': self.send_to_consensus},
                         'POST': {'contract_read': self.contract_read,
                                  'contract_write': self.stamp_to_consensus,
@@ -61,7 +61,7 @@ class Navigator:
         self.close()
         return reply
 
-    def send_to_execution(self, record):
+    def register_agent(self, record):
         self.db.lpush('execution', json.dumps((self.identity, record)))
         print(self.identity, 'send to execution', record['action'])
         return None

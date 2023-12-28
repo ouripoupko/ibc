@@ -86,7 +86,7 @@ class PBFT:
             self.parameters['block'].append(hash_code)
         index = self.parameters['next_index']
         if index - self.parameters['last_index'] > 5 and len(self.parameters['block']) < 1000:
-            return False
+            return
         self.parameters['next_index'] = index+1
         block_code = hashlib.sha256(str(self.parameters['block']).encode('utf-8')).hexdigest()
         data = {'v': self.parameters['view'],
@@ -96,7 +96,6 @@ class PBFT:
         for partner in self.partners:
             partner.consent(self.contract_name, ProtocolStep.PRE_PREPARE.name, data)
         self.store_pre_prepare(data)
-        return True
 
     def receive_pre_prepare(self, data):
         # I should check signatures and digest, but I am lazy
@@ -303,6 +302,8 @@ class PBFT:
         # if requests were handled in blocks, this agent index will run faster than others
         # self.logger.debug('record: ' + str(record))
         index = self.parameters['next_index']
+        if 'hash_code' not in record:
+            print('oops')
         hash_code = record['hash_code']
         self.db.set(f'blocks.{str(index)}', {'hash': str(index)+hash_code})
         self.db.set(f'preparations.{str(index)+hash_code}', {'block': [hash_code]})
@@ -317,7 +318,6 @@ class PBFT:
 
     def handle_message(self, record, executioners: Redis):
         # self.logger.debug(self.me + ' ' + str(record))
-        reply = False
         # check if checkpoint was crossed
         if self.parameters['last_index'] > self.parameters['checkpoint'] and \
                 'checkpoint_hash' not in self.parameters:
@@ -328,7 +328,7 @@ class PBFT:
         if not record['action'] == 'a2a_consent':
             hash_code = self.send_request(record)
             if self.leader_is_me():
-                reply = self.send_pre_prepare(hash_code)
+                self.send_pre_prepare(hash_code)
         else:
             message = record['message']['msg']
             step = ProtocolStep[message['step']]
@@ -343,19 +343,23 @@ class PBFT:
                         for key in pre_prepare['block']:
                             request = self.db.get(f'requests.{key}')
                             stored_record = request['record']
-                            stored_record['hash_code'] = key
-                            executioners.lpush('execution', json.dumps(self.me, message['record']))
-                            print(self.me, 'from pbft to execution', message['record']['action'])
+                            executioners.lpush('execution', json.dumps((self.me, stored_record)))
+                            print(self.me, 'from pbft to execution', stored_record['action'])
                         last_index += 1
                         self.parameters['last_index'] = last_index
                         if self.parameters['next_index'] - last_index < 4 and self.parameters['block']:
-                            reply = self.send_pre_prepare(None)
-                            if reply:
-                                break
+                            self.send_pre_prepare(None)
                     else:
                         break
         self.db.set('parameters', self.parameters)
-        return reply
+
+    @staticmethod
+    def get_original_record(record):
+        message = record['message']['msg']
+        step = ProtocolStep[message['step']]
+        data = message['data']
+        return data['o'] if step == ProtocolStep.REQUEST else None
+
 
 # should wait on time out from request to change view
 # can optimize by sending bulk of messages when traffic is high

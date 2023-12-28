@@ -11,13 +11,11 @@ if __name__ == '__main__':
     queues = {}
     navigators = {}
     while True:
-        channel, payload = db.brpop(['consensus', 'consensus_direct', 'consensus_release'])
-        channel = channel.decode("utf-8")
-        agent, record = json.loads(payload)
-        print(channel.ljust(17), agent, record)
+        agent, record = json.loads(db.brpop(['consensus'])[1])
+        print(agent, record)
         if agent not in queues:
             queues[agent] = Queue()
-        queues[agent].put((record, channel == 'consensus_direct', channel == 'consensus_release'))
+        queues[agent].put(record)
         if agent not in navigators or not navigators[agent].is_alive():
             navigators[agent] = ConsensusNavigator(agent, queues[agent], redis_port, None)
             navigators[agent].start()

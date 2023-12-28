@@ -3,12 +3,9 @@ from queue import Queue, Empty
 import json
 import os
 
-from partner import Partner
 from execution.blockchain import BlockChain
 from mongodb_storage import DBBridge
 from contract_execution import ContractExecution
-
-import my_timer
 
 from redis import Redis
 
@@ -22,8 +19,7 @@ class ExecutionNavigator(Thread):
         self.db = Redis(host='localhost', port=redis_port, db=0)
         self.actions = {'PUT':  {'register_agent': self.register_agent,
                                  'deploy_contract': self.deploy_contract,
-                                 'a2a_connect': self.a2a_connect,
-                                 'a2a_reply_join': self.a2a_reply_join},
+                                 'a2a_connect': self.a2a_connect},
                         'POST': {'contract_write': self.contract_write}}
         self.contracts = {}
         self.storage_bridge = DBBridge(self.logger).connect(self.mongo_port, allow_write=True)
@@ -33,7 +29,7 @@ class ExecutionNavigator(Thread):
         self.ledger = BlockChain(self.identity_doc, self.logger) if self.identity_doc.exists() else None
         super().__init__()
 
-    def __del__(self):
+    def close(self):
         for contract in self.contracts.values():
             contract.close()
         self.storage_bridge.disconnect()
@@ -49,7 +45,7 @@ class ExecutionNavigator(Thread):
             self.contracts[hash_code].run()
         return self.contracts[hash_code]
 
-    def register_agent(self, _record, _direct):
+    def register_agent(self, _record):
         # a client adds an identity
         self.agents[self.identity] = {'address': os.getenv('MY_ADDRESS')}
         identity_doc = self.agents[self.identity]
@@ -57,7 +53,7 @@ class ExecutionNavigator(Thread):
         self.ledger = BlockChain(identity_doc, self.logger)
         print('registered agent', self.identity)
 
-    def deploy_contract(self, record, direct):
+    def deploy_contract(self, record):
         if self.contracts_db is None:
             return
         hash_code = record['hash_code']
@@ -67,36 +63,19 @@ class ExecutionNavigator(Thread):
                                      self, self.ledger, self.logger)
         self.contracts[hash_code] = contract
         contract.create(record)
-        if not direct:
-            self.db.publish(self.identity, record['contract'])
-
-    def a2a_reply_join(self, record, _direct):
-        # a partner notifies success on join request
-        message = record['message']
-        status = message['msg']['status']
-        if status:
-            partner = Partner(message['msg']['address'], message['msg']['pid'],
-                              self.identity_doc['address'], self.identity, None)
-            records = partner.get_ledger(record['contract'])
-            for key in sorted(records.keys()):
-                action = self.actions[records[key]['type']].get(records[key]['action'])
-                self.db.lpush('consensus_direct', json.dumps((self.identity, records[key])))
-                action(records[key], True)
         self.db.publish(self.identity, record['contract'])
-        return {}
 
-    def a2a_connect(self, record, direct):
+    def a2a_connect(self, record):
         contract = self.get_contract(record['contract'])
         record['status'] = contract.join(record)
-        self.db.lpush('consensus_release', json.dumps((self.identity, record)))
-        if not direct:
-            self.db.publish(self.identity, record['contract'])
+        record['action'] = 'int_partner'
+        self.db.lpush('consensus', json.dumps((self.identity, record)))
+        self.db.publish(self.identity, record['contract'])
 
-    def contract_write(self, record, direct):
+    def contract_write(self, record):
         contract = self.get_contract(record['contract'])
         contract.call(record, True)
-        if not direct:
-            self.db.publish(self.identity, record['contract'])
+        self.db.publish(self.identity, record['contract'])
 
     def run(self):
         while True:
@@ -105,4 +84,5 @@ class ExecutionNavigator(Thread):
             except Empty:
                 break
             action = self.actions[record['type']].get(record['action'])
-            action(record, False)
+            action(record)
+        self.close()
