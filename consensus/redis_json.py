@@ -1,15 +1,15 @@
 from redis import Redis
 
 class RedisJson:
-    def __init__(self, db, agent, contract):
+    def __init__(self, db: Redis, agent, contract):
         self.db = db
         self.agent = agent
         self.contract = contract
         if not self.db.exists(self.agent) or self.contract not in self.db.json().objkeys(self.agent, '.'):
             self.db.json().set(self.agent, f'.', {self.contract: {}})
 
-    def set(self, path, value):
-        self.db.json().set(self.agent, f'.{self.contract}{"."+path if path else ""}', value)
+    def set(self, path, value, nx = False):
+        self.db.json().set(self.agent, f'.{self.contract}{"."+path if path else ""}', value, nx)
 
     def merge(self, path, value):
         self.db.json().merge(self.agent, f'.{self.contract}.{path}', value)

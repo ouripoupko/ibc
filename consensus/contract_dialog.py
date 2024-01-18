@@ -1,6 +1,5 @@
 from threading import Thread
 from redis import Redis
-import json
 from queue import Queue
 
 from redis_json import RedisJson
@@ -52,15 +51,17 @@ class ContractDialog:
         if db_contract['protocol'] == 'BFT':
             self.protocol = PBFT(self.contract, self.identity, self.partners, self.json_db)
 
-    def consent(self, record, direct):
+    def process(self, record, direct):
         if not self.partners or direct:
-            self.protocol.record_message(record)
-            self.db0.lpush('execution', json.dumps((self.identity, record)))
+            self.protocol.record_message(record, self.db0)
         else:
-            self.protocol.handle_message(record, self.db0)
+            self.protocol.send_request(record)
+
+    def consent(self, record):
+        self.protocol.handle_consent(record, self.db0)
+
 
     def partner(self, agent, address):
         self.json_db.set(f'partners.{agent}', address)
-        self.partners.append(Partner(address, agent,
-                                     self.my_address, self.identity, self.queue))
-        self.protocol.update_partners(self.partners)
+        self.partners = []
+        self.create()

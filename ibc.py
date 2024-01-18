@@ -3,7 +3,7 @@ import os
 import logging
 import random
 
-from flask import Flask, request, send_from_directory, render_template, jsonify, Response
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from redis import Redis
 
@@ -103,7 +103,8 @@ if __name__ == '__main__':
         conf_kwargs['filename'] = sys.argv[4]
     logging.basicConfig(**conf_kwargs)
 
-    logger = logging.getLogger('werkzeug')
-    logger.setLevel(logging.WARNING)
+    # logger = logging.getLogger('werkzeug')
+    logger = logging.getLogger('ibc')
+    logger.setLevel(logging.DEBUG)
     # app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     app.run(host='0.0.0.0', port=port, use_reloader=False)  # , threaded=False)
