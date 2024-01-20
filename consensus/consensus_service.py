@@ -29,7 +29,7 @@ class AgentThread(Thread):
                 self.logger.debug('%s: take record from queue: %s', self.identity, a_record['action'])
                 contract = a_record['contract']
                 if contract not in self.navigators:
-                    self.navigators[contract] = ConsensusNavigator(self.identity, redis_port, logger)
+                    self.navigators[contract] = ConsensusNavigator(self.identity, contract, redis_port, logger)
                 self.navigators[contract].handle_record(a_record)
             except Empty:
                 break

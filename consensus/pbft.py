@@ -13,8 +13,9 @@ class ProtocolStep(Enum):
 
 
 class PBFT:
-    def __init__(self, contract_name, me, partners, db: RedisJson):
+    def __init__(self, contract_name, me, partners, db: RedisJson, executioner: Redis):
         self.db = db
+        self.executioner = executioner
         if 'state' not in self.db.object_keys(None):
             self.db.set(None, {'requests': {}, 'receipts': {},
                                'state': {'view': 0,
@@ -22,7 +23,8 @@ class PBFT:
                                          'step': ProtocolStep.REQUEST.name,
                                          'requests': [],
                                          'hash_code': None,
-                                         'block': []}})
+                                         'block': [],
+                                         'direct': []}})
         self.state = self.db.get('state')
         self.contract_name = contract_name
         self.me = me
@@ -35,9 +37,36 @@ class PBFT:
                          ProtocolStep.PRE_PREPARE: lambda x: self.receive_pre_prepare(x),
                          ProtocolStep.PREPARE: lambda x: self.receive_prepare(x),
                          ProtocolStep.COMMIT: lambda x: self.receive_commit(x)}
+        self.handle_cache()
 
     def leader_is_me(self):
         return self.names[self.order[self.state['view']]] == self.me
+
+    def check_terminate(self, request):
+        if request['record']['action'] == 'a2a_connect':
+            self.terminate = True
+        return self.terminate
+
+    def up_to_a2a_connect(self, records):
+        block = []
+        while records:
+            code = records.pop(0)
+            block.append(code)
+            request = self.db.get(f'requests.{code}')
+            if self.check_terminate(request):
+                break
+        return block
+
+    def handle_cache(self):
+        directs = self.up_to_a2a_connect(self.state['direct'])
+        while directs:
+            self.execute_direct(directs.pop(0))
+        if self.state['direct']:
+            self.terminate = True
+        elif self.state['requests'] and self.leader_is_me():
+            self.send_pre_prepare()
+        self.db.set('state', self.state)
+
 
     def send_request(self, record):
         data = {'o': record,
@@ -60,14 +89,7 @@ class PBFT:
     def send_pre_prepare(self):
         index = self.state['index']
         # need to pause after connect request, as it might lead to change in partners
-        block = []
-        while self.state['requests']:
-            code = self.state['requests'].pop(0)
-            block.append(code)
-            request = self.db.get(f'requests.{code}')
-            if request['record']['action'] == 'a2a_connect':
-                self.terminate = True
-                break
+        block = self.up_to_a2a_connect(self.state['requests'])
         data = {'v': self.state['view'],
                 'n': index,
                 'd': hashlib.sha256(str(block).encode('utf-8')).hexdigest(),
@@ -138,9 +160,19 @@ class PBFT:
                 if new_step is ProtocolStep.COMMIT:
                     self.send_phase(ProtocolStep.COMMIT)
 
-    def record_message(self, record, executioner: Redis):
+    def execute_direct(self, record, clean_up = False):
         self.state['index'] += 1
-        executioner.lpush('execution', json.dumps((self.me, record)))
+        self.executioner.lpush('execution', json.dumps((self.me, record)))
+        if clean_up:
+            self.db.delete(f'requests.{record['hash_code']}')
+
+    def handle_direct(self, record):
+        if self.terminate:
+            self.db.set(f'requests.{record['hash_code']}', record)
+            self.state['direct'].append(record['hash_code'])
+        else:
+            self.execute_direct(record)
+            self.check_terminate(record)
         self.db.set('state', self.state)
 
     def handle_request(self, record):
@@ -149,7 +181,7 @@ class PBFT:
             self.send_pre_prepare()
         self.db.set('state', self.state)
 
-    def handle_consent(self, record, executioner: Redis):
+    def handle_consent(self, record):
         # self.logger.debug(self.me + ' ' + str(record))
         message = record['message']['msg']
         step = ProtocolStep[message['step']]
@@ -163,30 +195,30 @@ class PBFT:
         if self.state['step'] == ProtocolStep.COMMIT:
             self.check_phase()
         if self.state['step'] == ProtocolStep.DONE:
-            self.execute(executioner)
+            self.execute()
             self.state['step'] = ProtocolStep.REQUEST
             if self.state['requests'] and not self.terminate and self.leader_is_me():
                 self.send_pre_prepare()
 
         self.db.set('state', self.state)
 
-    def execute(self, executioner):
+    def execute(self):
         for key in self.state['block']:
             request = self.db.get(f'requests.{key}')
             stored_record = request['record']
             stored_record['index'] = self.state['index']
             self.state['index'] += 1
-            executioner.lpush('execution', json.dumps((self.me, stored_record)))
+            self.executioner.lpush('execution', json.dumps((self.me, stored_record)))
         self.state['block'] = []
         self.db.delete(f'requests.{self.state['hash_code']}')
         self.db.delete(f'receipts.{self.state['hash_code']}')
 
-    @staticmethod
-    def get_original_record(record):
-        message = record['message']['msg']
-        step = ProtocolStep[message['step']]
-        data = message['data']
-        return data['o'] if step == ProtocolStep.REQUEST else None
+    # @staticmethod
+    # def get_original_record(record):
+    #     message = record['message']['msg']
+    #     step = ProtocolStep[message['step']]
+    #     data = message['data']
+    #     return data['o'] if step == ProtocolStep.REQUEST else None
 
 
 # should wait on time out from request to change view

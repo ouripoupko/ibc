@@ -22,46 +22,47 @@ class ContractDialog:
         self.json_db = RedisJson(self.db1, identity, contract)
         self.queue = Queue()
         Thread(target=sender, args=(self.queue,)).start()
-        self.partners = []
         self.protocol = None
         self.my_address = my_address
 
-        if 'contract' not in self.json_db.object_keys(None):
-            self.json_db.set('contract', {})
-            self.json_db.set('partners', {})
-        elif 'protocol' in self.json_db.object_keys('contract'):
+        if 'contract' in self.json_db.object_keys(None):
             self.create()
 
     def close(self):
         self.db0.close()
         self.db1.close()
 
+    def exists(self):
+        return 'contract' in self.json_db.object_keys(None)
+
     def deploy(self, agent, address, protocol):
         self.json_db.set('contract', {'protocol': protocol})
-        self.create()
-        if agent != self.identity:
+        self.json_db.set('partners', {})
+        if agent == self.identity:
+            self.create()
+        else:
             self.partner(agent, address)
 
     def create(self):
         db_contract = self.json_db.get('contract')
         db_partners = self.json_db.get('partners')
+        partners = []
         for key, address in db_partners.items():
             if key != self.identity:
-                self.partners.append(Partner(address, key, self.my_address, self.identity, self.queue))
+                partners.append(Partner(address, key, self.my_address, self.identity, self.queue))
         if db_contract['protocol'] == 'BFT':
-            self.protocol = PBFT(self.contract, self.identity, self.partners, self.json_db)
+            self.protocol = PBFT(self.contract, self.identity, partners, self.json_db, self.db0)
 
     def process(self, record, direct):
-        if not self.partners or direct:
-            self.protocol.record_message(record, self.db0)
+        if not self.json_db.get('partners') or direct:
+            self.protocol.record_message(record)
         else:
             self.protocol.send_request(record)
 
     def consent(self, record):
-        self.protocol.handle_consent(record, self.db0)
+        self.protocol.handle_consent(record)
 
 
     def partner(self, agent, address):
         self.json_db.set(f'partners.{agent}', address)
-        self.partners = []
         self.create()
