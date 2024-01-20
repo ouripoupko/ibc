@@ -83,6 +83,7 @@ class ExecutionNavigator(Thread):
                 record = self.queue.get(timeout=60)
             except Empty:
                 break
+            print(record)
             action = self.actions[record['type']].get(record['action'])
             action(record)
         self.close()

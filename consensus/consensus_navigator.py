@@ -1,6 +1,5 @@
 import os
 from collections import deque
-from redis import Redis
 from enum import Enum, auto
 
 from contract_dialog import ContractDialog
@@ -38,7 +37,7 @@ class ConsensusNavigator:
         while self.delay_queue:
             self.handle_record(self.delay_queue.popleft())
 
-    def a2a_reply_join(self, record):
+    def a2a_reply_join(self, record, _direct):
         self.logger.debug('%s: got reply join: %s', self.identity, record['message']['msg']['pid'])
         message = record['message']
         status = message['msg']['status']
@@ -57,13 +56,13 @@ class ConsensusNavigator:
         else:
             self.contract.process(record, direct)
 
-    def int_partner(self, record):
+    def int_partner(self, record, _direct):
         self.logger.debug('%s: update partner: %s', self.identity, record['message']['msg']['pid'])
         if record['status']:
             message = record['message']['msg']
             self.contract.partner(message['pid'], message['address'])
 
-    def a2a_consent(self, record):
+    def a2a_consent(self, record, _direct):
         self.logger.debug('%s: receive consensus %s: %s: %s', self.identity, record['message']['from'],
                           record['message']['msg']['step'], record['message']['msg']['data']['d'])
         if not self.contract.exists():

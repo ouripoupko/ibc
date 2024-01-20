@@ -55,9 +55,9 @@ class ContractDialog:
 
     def process(self, record, direct):
         if not self.json_db.get('partners') or direct:
-            self.protocol.record_message(record)
+            self.protocol.handle_direct(record)
         else:
-            self.protocol.send_request(record)
+            self.protocol.handle_request(record)
 
     def consent(self, record):
         self.protocol.handle_consent(record)

@@ -17,7 +17,7 @@ class PBFT:
         self.db = db
         self.executioner = executioner
         if 'state' not in self.db.object_keys(None):
-            self.db.set(None, {'requests': {}, 'receipts': {},
+            self.db.merge(None, {'requests': {}, 'receipts': {},
                                'state': {'view': 0,
                                          'index': 0,
                                          'step': ProtocolStep.REQUEST.name,
@@ -42,8 +42,8 @@ class PBFT:
     def leader_is_me(self):
         return self.names[self.order[self.state['view']]] == self.me
 
-    def check_terminate(self, request):
-        if request['record']['action'] == 'a2a_connect':
+    def check_terminate(self, record):
+        if record['action'] == 'a2a_connect':
             self.terminate = True
         return self.terminate
 
@@ -53,14 +53,15 @@ class PBFT:
             code = records.pop(0)
             block.append(code)
             request = self.db.get(f'requests.{code}')
-            if self.check_terminate(request):
+            if self.check_terminate(request['record']):
                 break
         return block
 
     def handle_cache(self):
         directs = self.up_to_a2a_connect(self.state['direct'])
         while directs:
-            self.execute_direct(directs.pop(0))
+            request = self.db.get(f'requests.{directs.pop(0)}')
+            self.execute_direct(request['record'])
         if self.state['direct']:
             self.terminate = True
         elif self.state['requests'] and self.leader_is_me():
@@ -147,8 +148,8 @@ class PBFT:
     def check_phase(self):
         hash_code = self.state['hash_code']
         # set to empty array if path not yet exists
-        self.db.set(f'receipts.{hash_code}.{self.state['step']}', [], True)
-        receipts = self.db.get(f'receipts.{hash_code}.{self.state['step']}')
+        self.db.set(f'receipts.{hash_code}.{self.state["step"]}', [], True)
+        receipts = self.db.get(f'receipts.{hash_code}.{self.state["step"]}')
         if len(receipts) * 3 > len(self.order) * 2:
             names = set()
             for item in receipts:
@@ -164,11 +165,11 @@ class PBFT:
         self.state['index'] += 1
         self.executioner.lpush('execution', json.dumps((self.me, record)))
         if clean_up:
-            self.db.delete(f'requests.{record['hash_code']}')
+            self.db.delete(f'requests.{record["hash_code"]}')
 
     def handle_direct(self, record):
         if self.terminate:
-            self.db.set(f'requests.{record['hash_code']}', record)
+            self.db.set(f'requests.{record["hash_code"]}', {'record': record})
             self.state['direct'].append(record['hash_code'])
         else:
             self.execute_direct(record)
@@ -210,15 +211,9 @@ class PBFT:
             self.state['index'] += 1
             self.executioner.lpush('execution', json.dumps((self.me, stored_record)))
         self.state['block'] = []
-        self.db.delete(f'requests.{self.state['hash_code']}')
-        self.db.delete(f'receipts.{self.state['hash_code']}')
+        self.db.delete(f'requests.{self.state["hash_code"]}')
+        self.db.delete(f'receipts.{self.state["hash_code"]}')
 
-    # @staticmethod
-    # def get_original_record(record):
-    #     message = record['message']['msg']
-    #     step = ProtocolStep[message['step']]
-    #     data = message['data']
-    #     return data['o'] if step == ProtocolStep.REQUEST else None
 
 
 # should wait on time out from request to change view
