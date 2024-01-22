@@ -22,6 +22,7 @@ class PBFT:
                                          'index': 0,
                                          'step': ProtocolStep.REQUEST.name,
                                          'requests': [],
+                                         'sent': {},
                                          'hash_code': None,
                                          'block': [],
                                          'direct': []}})
@@ -49,8 +50,7 @@ class PBFT:
 
     def up_to_a2a_connect(self, records):
         block = []
-        while records:
-            code = records.pop(0)
+        for code in records:
             block.append(code)
             request = self.db.get(f'requests.{code}')
             if self.check_terminate(request['record']):
@@ -64,18 +64,33 @@ class PBFT:
             self.execute_direct(request['record'])
         if self.state['direct']:
             self.terminate = True
-        elif self.state['requests'] and self.leader_is_me():
+        for sent, checked in self.state['sent'].items():
+            request = self.db.get(f'requests.{sent}')
+            self.resend_request(request['record'], checked)
+        if not self.terminate and self.state['requests'] and self.leader_is_me():
             self.send_pre_prepare()
         self.db.set('state', self.state)
 
+    def resend_request(self, record, checked):
+        data = {'o': record,
+                't': record['timestamp'],
+                'd': record['hash_code'],
+                'c': self.me}
+        for partner in self.partners:
+            if partner.pid not in checked:
+                partner.consent(self.contract_name, ProtocolStep.REQUEST.name, data)
+                self.state['sent'][data['d']].append(partner.pid)
+        self.store_request(data)
 
     def send_request(self, record):
         data = {'o': record,
                 't': record['timestamp'],
                 'd': record['hash_code'],
                 'c': self.me}
+        self.state['sent'][data['d']] = []
         for partner in self.partners:
             partner.consent(self.contract_name, ProtocolStep.REQUEST.name, data)
+            self.state['sent'][data['d']].append(partner.pid)
         self.store_request(data)
 
     def receive_request(self, data):
@@ -98,6 +113,7 @@ class PBFT:
         for partner in self.partners:
             partner.consent(self.contract_name, ProtocolStep.PRE_PREPARE.name, data)
         self.store_pre_prepare(data)
+        self.check_progress()
 
     def receive_pre_prepare(self, data):
         # I should check signatures and digest, but I am lazy
@@ -111,6 +127,9 @@ class PBFT:
         self.state['step'] = ProtocolStep.PRE_PREPARE.name
         self.state['hash_code'] = data['d']
         self.state['block'] = data['l']
+        for request in data['l']:
+            self.state['requests'].remove(request)
+            self.state['sent'].pop(request, None)
 
     def check_pre_prepare(self):
         all_exist = True
@@ -120,7 +139,7 @@ class PBFT:
                 all_exist = False
                 break
         if all_exist:
-            self.state['step'] = ProtocolStep.PREPARE
+            self.state['step'] = ProtocolStep.PREPARE.name
             self.send_phase(ProtocolStep.PREPARE)
 
     def send_phase(self, phase):
@@ -140,15 +159,19 @@ class PBFT:
         # I should check signatures, but I am lazy
         self.store_phase(data, ProtocolStep.COMMIT)
 
+    def make_sure_array_exists(self, record, phase):
+        if record not in self.db.object_keys('receipts'):
+            self.db.set(f'receipts.{record}', {phase: []})
+        if phase not in self.db.object_keys(f'receipts.{record}'):
+            self.db.set(f'receipts.{record}.{phase}', [])
+
     def store_phase(self, data, phase):
-        # set to empty array if path not yet exists
-        self.db.set(f'receipts.{data["d"]}.{phase.name}', [], True)
+        self.make_sure_array_exists(data['d'], phase.name)
         self.db.array_append(f'receipts.{data["d"]}.{phase.name}', data)
 
     def check_phase(self):
         hash_code = self.state['hash_code']
-        # set to empty array if path not yet exists
-        self.db.set(f'receipts.{hash_code}.{self.state["step"]}', [], True)
+        self.make_sure_array_exists(hash_code, self.state['step'])
         receipts = self.db.get(f'receipts.{hash_code}.{self.state["step"]}')
         if len(receipts) * 3 > len(self.order) * 2:
             names = set()
@@ -178,7 +201,7 @@ class PBFT:
 
     def handle_request(self, record):
         self.send_request(record)
-        if self.state['step'] == ProtocolStep.REQUEST and not self.terminate and self.leader_is_me():
+        if self.state['step'] == ProtocolStep.REQUEST.name and not self.terminate and self.leader_is_me():
             self.send_pre_prepare()
         self.db.set('state', self.state)
 
@@ -188,20 +211,21 @@ class PBFT:
         step = ProtocolStep[message['step']]
         data = message['data']
         self.switcher[step](data)
+        self.check_progress()
+        self.db.set('state', self.state)
 
-        if self.state['step'] == ProtocolStep.PRE_PREPARE:
+    def check_progress(self):
+        if self.state['step'] == ProtocolStep.PRE_PREPARE.name:
             self.check_pre_prepare()
-        if self.state['step'] == ProtocolStep.PREPARE:
+        if self.state['step'] == ProtocolStep.PREPARE.name:
             self.check_phase()
-        if self.state['step'] == ProtocolStep.COMMIT:
+        if self.state['step'] == ProtocolStep.COMMIT.name:
             self.check_phase()
-        if self.state['step'] == ProtocolStep.DONE:
+        if self.state['step'] == ProtocolStep.DONE.name:
             self.execute()
-            self.state['step'] = ProtocolStep.REQUEST
+            self.state['step'] = ProtocolStep.REQUEST.name
             if self.state['requests'] and not self.terminate and self.leader_is_me():
                 self.send_pre_prepare()
-
-        self.db.set('state', self.state)
 
     def execute(self):
         for key in self.state['block']:

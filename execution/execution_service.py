@@ -14,7 +14,6 @@ if __name__ == '__main__':
     queues = {}
     while True:
         agent, record = json.loads(db.brpop(['execution'])[1])
-        print(agent, record)
         if agent not in queues:
             queues[agent] = Queue()
         queues[agent].put(record)

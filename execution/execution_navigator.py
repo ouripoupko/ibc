@@ -64,6 +64,7 @@ class ExecutionNavigator(Thread):
         self.contracts[hash_code] = contract
         contract.create(record)
         self.db.publish(self.identity, record['contract'])
+        print(self.identity, 'deploy contract', record['contract'])
 
     def a2a_connect(self, record):
         contract = self.get_contract(record['contract'])
@@ -71,11 +72,13 @@ class ExecutionNavigator(Thread):
         record['action'] = 'int_partner'
         self.db.lpush('consensus', json.dumps((self.identity, record)))
         self.db.publish(self.identity, record['contract'])
+        print(self.identity, 'connect', record['agent'])
 
     def contract_write(self, record):
         contract = self.get_contract(record['contract'])
         contract.call(record, True)
         self.db.publish(self.identity, record['contract'])
+        print(self.identity, 'contract_write')
 
     def run(self):
         while True:
@@ -83,7 +86,6 @@ class ExecutionNavigator(Thread):
                 record = self.queue.get(timeout=60)
             except Empty:
                 break
-            print(record)
             action = self.actions[record['type']].get(record['action'])
             action(record)
         self.close()

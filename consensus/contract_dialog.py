@@ -54,7 +54,7 @@ class ContractDialog:
             self.protocol = PBFT(self.contract, self.identity, partners, self.json_db, self.db0)
 
     def process(self, record, direct):
-        if not self.json_db.get('partners') or direct:
+        if direct:
             self.protocol.handle_direct(record)
         else:
             self.protocol.handle_request(record)
