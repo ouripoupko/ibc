@@ -57,7 +57,6 @@ class ContractExecution:
             my_timer.stop(self.me + '_run', previous)
 
     def join(self, record):
-        reply = False
         previous = my_timer.start()
         self.ledger.log(record)
         message = record['message']
@@ -67,21 +66,16 @@ class ContractExecution:
                                  {'values': {'partner': msg['pid']}},
                                  record.get('timestamp', None))
         if approve:
-            reply = self.connect(msg['address'], msg['pid'], msg['profile'])
+            self.connect(msg['address'], msg['pid'], msg['profile'])
         if message['to'] == self.me:
             partner = Partner(msg['address'], msg['pid'], self.my_address, self.me, self.queue)
             partner.reply_join(self.hash_code, approve)
             print(self.me, 'reply on join request', approve)
         my_timer.stop(self.me + '_join', previous)
-        return reply
+        return approve
 
     def connect(self, address, pid, profile):
-        reply = False
         self.partners_db[pid] = {'address': address, 'profile': profile}
-        if pid != self.me:
-            reply = True
-            print(self.me, 'adding new partner', pid)
-        return reply
 
     def call(self, record, should_log):
         previous = my_timer.start()

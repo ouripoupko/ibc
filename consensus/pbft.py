@@ -23,6 +23,7 @@ class PBFT:
                                          'step': ProtocolStep.REQUEST.name,
                                          'requests': [],
                                          'sent': {},
+                                         'pre_prepare': [],
                                          'hash_code': None,
                                          'block': [],
                                          'direct': []}})
@@ -38,7 +39,7 @@ class PBFT:
                          ProtocolStep.PRE_PREPARE: lambda x: self.receive_pre_prepare(x),
                          ProtocolStep.PREPARE: lambda x: self.receive_prepare(x),
                          ProtocolStep.COMMIT: lambda x: self.receive_commit(x)}
-        self.handle_cache()
+        self.run_protocol()
 
     def leader_is_me(self):
         return self.names[self.order[self.state['view']]] == self.me
@@ -57,19 +58,19 @@ class PBFT:
                 break
         return block
 
-    def handle_cache(self):
+    def check_request(self):
         directs = self.up_to_a2a_connect(self.state['direct'])
         while directs:
             request = self.db.get(f'requests.{directs.pop(0)}')
-            self.execute_direct(request['record'])
-        if self.state['direct']:
-            self.terminate = True
+            self.execute_direct(request['record'], True)
         for sent, checked in self.state['sent'].items():
             request = self.db.get(f'requests.{sent}')
             self.resend_request(request['record'], checked)
-        if not self.terminate and self.state['requests'] and self.leader_is_me():
-            self.send_pre_prepare()
-        self.db.set('state', self.state)
+        if not self.terminate:
+            if self.state['pre_prepare']:
+                self.receive_pre_prepare(self.state['pre_prepare'].pop(0))
+            elif self.state['requests'] and self.leader_is_me():
+                self.send_pre_prepare()
 
     def resend_request(self, record, checked):
         data = {'o': record,
@@ -80,7 +81,6 @@ class PBFT:
             if partner.pid not in checked:
                 partner.consent(self.contract_name, ProtocolStep.REQUEST.name, data)
                 self.state['sent'][data['d']].append(partner.pid)
-        self.store_request(data)
 
     def send_request(self, record):
         data = {'o': record,
@@ -113,13 +113,15 @@ class PBFT:
         for partner in self.partners:
             partner.consent(self.contract_name, ProtocolStep.PRE_PREPARE.name, data)
         self.store_pre_prepare(data)
-        self.check_progress()
 
     def receive_pre_prepare(self, data):
+        if self.terminate or self.state['step'] != ProtocolStep.REQUEST.name:
+            self.state['pre_prepare'].append(data)
+            return
         # I should check signatures and digest, but I am lazy
         if data['v'] != self.state['view']:
             return
-        if data['n'] != self.state['index']:
+        if data['n'] < self.state['index']:
             return
         self.store_pre_prepare(data)
 
@@ -189,6 +191,7 @@ class PBFT:
         self.executioner.lpush('execution', json.dumps((self.me, record)))
         if clean_up:
             self.db.delete(f'requests.{record["hash_code"]}')
+            self.state['direct'].remove(record["hash_code"])
 
     def handle_direct(self, record):
         if self.terminate:
@@ -197,13 +200,10 @@ class PBFT:
         else:
             self.execute_direct(record)
             self.check_terminate(record)
-        self.db.set('state', self.state)
 
     def handle_request(self, record):
         self.send_request(record)
-        if self.state['step'] == ProtocolStep.REQUEST.name and not self.terminate and self.leader_is_me():
-            self.send_pre_prepare()
-        self.db.set('state', self.state)
+        self.run_protocol()
 
     def handle_consent(self, record):
         # self.logger.debug(self.me + ' ' + str(record))
@@ -211,21 +211,27 @@ class PBFT:
         step = ProtocolStep[message['step']]
         data = message['data']
         self.switcher[step](data)
-        self.check_progress()
-        self.db.set('state', self.state)
+        self.run_protocol()
 
-    def check_progress(self):
-        if self.state['step'] == ProtocolStep.PRE_PREPARE.name:
-            self.check_pre_prepare()
-        if self.state['step'] == ProtocolStep.PREPARE.name:
-            self.check_phase()
-        if self.state['step'] == ProtocolStep.COMMIT.name:
-            self.check_phase()
-        if self.state['step'] == ProtocolStep.DONE.name:
-            self.execute()
-            self.state['step'] = ProtocolStep.REQUEST.name
-            if self.state['requests'] and not self.terminate and self.leader_is_me():
-                self.send_pre_prepare()
+    def run_protocol(self):
+        while True:
+            if self.state['step'] == ProtocolStep.REQUEST.name:
+                self.check_request()
+            if self.state['step'] == ProtocolStep.PRE_PREPARE.name:
+                self.check_pre_prepare()
+            if self.state['step'] == ProtocolStep.PREPARE.name:
+                self.check_phase()
+            if self.state['step'] == ProtocolStep.COMMIT.name:
+                self.check_phase()
+            if self.state['step'] == ProtocolStep.DONE.name:
+                self.execute()
+                self.state['step'] = ProtocolStep.REQUEST.name
+            no_pre_prepare = not self.state['pre_prepare']
+            no_requests = not self.state['requests'] or not self.leader_is_me()
+            in_the_middle = self.state['step'] != ProtocolStep.REQUEST.name
+            if (no_pre_prepare and no_requests) or in_the_middle or self.terminate:
+                break
+        self.db.set('state', self.state)
 
     def execute(self):
         for key in self.state['block']:
