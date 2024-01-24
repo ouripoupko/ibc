@@ -1,7 +1,7 @@
 import requests
 
 server = 'http://localhost:5001'
-agents = [f'agent_{str(index).zfill(5)}' for index in range(10)]
+agents = [f'agent_{str(index).zfill(5)}' for index in range(20)]
 f = open('delib.py', 'r')
 contract_code = f.read()
 f.close()
@@ -49,10 +49,6 @@ for agent in agents:
     print(agent)
     print(reply.json())
 
-
-requests.put(f'{server}/ibc/app/terminator',
-             params={'action': 'register_agent'},
-             json={})
 
 
 #

@@ -9,8 +9,6 @@ from execution.blockchain import BlockChain
 from mongodb_storage import DBBridge
 from contract_view import ContractView
 
-import my_timer
-
 from redis import Redis
 
 class Navigator:

@@ -16,13 +16,14 @@ class AgentThread(Thread):
         self.identity = identity
         self.logger = a_logger
         self.queue = queue
-        self.navigators = {}
+        self.navigators : dict[str, ConsensusNavigator] = {}
         super().__init__()
 
     def close(self):
         for navigator in self.navigators.values():
             navigator.close()
     def run(self):
+        self.logger.info('starting')
         while True:
             try:
                 a_record = self.queue.get(timeout=60)
@@ -33,13 +34,18 @@ class AgentThread(Thread):
                 self.navigators[contract].handle_record(a_record)
             except Empty:
                 break
+        list(self.navigators.values())[0].contract.timer.report()
+        self.logger.info('stopping')
         self.close()
 
 
 if __name__ == '__main__':
+    logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
+        level=logging.INFO,
+        datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger('ibc2')
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(logging.StreamHandler(sys.stdout))
+    logger.setLevel(logging.INFO)
+#    logger.addHandler(logging.StreamHandler(sys.stdout))
     db = Redis(host='localhost', port=redis_port, db=0)
     queues = {}
     agents = {}

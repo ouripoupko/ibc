@@ -18,7 +18,7 @@ class ConsensusNavigator:
     def __init__(self, identity, contract_code, redis_port, logger):
         self.identity = identity
         self.logger = logger
-        self.contract = ContractDialog(self.identity, os.getenv('MY_ADDRESS'), contract_code, redis_port)
+        self.contract = ContractDialog(self.identity, os.getenv('MY_ADDRESS'), contract_code, redis_port, logger)
         self.delay_queue = deque()
         self.actions = {'PUT': {'deploy_contract': self.deploy_contract,
                                 'a2a_connect': self.process,

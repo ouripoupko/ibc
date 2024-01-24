@@ -7,8 +7,6 @@ from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from redis import Redis
 
-import my_timer
-
 from navigator import Navigator
 
 # Create the application instance
@@ -46,8 +44,6 @@ def ibc_handler(identity, contract, method):
     response = jsonify(navigator.handle_record(record))
     response.headers.add('Access-Control-Allow-Origin', '*')
     logger.info('response ' + log_id+ ': ' + str(response.get_json()))
-    if identity == 'terminator':
-        my_timer.report()
     return response
 
 

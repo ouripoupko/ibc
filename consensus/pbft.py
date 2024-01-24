@@ -13,9 +13,10 @@ class ProtocolStep(Enum):
 
 
 class PBFT:
-    def __init__(self, contract_name, me, partners, db: RedisJson, executioner: Redis):
+    def __init__(self, contract_name, me, partners, db: RedisJson, executioner: Redis, logger):
         self.db = db
         self.executioner = executioner
+        self.logger = logger
         if 'state' not in self.db.object_keys(None):
             self.db.merge(None, {'requests': {}, 'receipts': {},
                                'state': {'view': 0,
@@ -44,23 +45,24 @@ class PBFT:
     def leader_is_me(self):
         return self.names[self.order[self.state['view']]] == self.me
 
-    def check_terminate(self, record):
-        if record['action'] == 'a2a_connect':
+    def check_terminate(self, record, enforce = True):
+        should_terminate = record['action'] == 'a2a_connect'
+        if should_terminate and enforce:
             self.terminate = True
-        return self.terminate
+        return should_terminate
 
     def up_to_a2a_connect(self, records):
         block = []
         for code in records:
             block.append(code)
             request = self.db.get(f'requests.{code}')
-            if self.check_terminate(request['record']):
+            if self.check_terminate(request['record'], False):
                 break
         return block
 
     def check_request(self):
         directs = self.up_to_a2a_connect(self.state['direct'])
-        while directs:
+        while directs and not self.terminate:
             request = self.db.get(f'requests.{directs.pop(0)}')
             self.execute_direct(request['record'], True)
         for sent, checked in self.state['sent'].items():
@@ -154,10 +156,14 @@ class PBFT:
         self.store_phase(data, phase)
 
     def receive_prepare(self, data):
+        if data['n'] < self.state['index']:
+            return
         # I should check signatures, but I am lazy
         self.store_phase(data, ProtocolStep.PREPARE)
 
     def receive_commit(self, data):
+        if data['n'] < self.state['index']:
+            return
         # I should check signatures, but I am lazy
         self.store_phase(data, ProtocolStep.COMMIT)
 
@@ -189,6 +195,7 @@ class PBFT:
     def execute_direct(self, record, clean_up = False):
         self.state['index'] += 1
         self.executioner.lpush('execution', json.dumps((self.me, record)))
+        self.check_terminate(record)
         if clean_up:
             self.db.delete(f'requests.{record["hash_code"]}')
             self.state['direct'].remove(record["hash_code"])
@@ -199,7 +206,6 @@ class PBFT:
             self.state['direct'].append(record['hash_code'])
         else:
             self.execute_direct(record)
-            self.check_terminate(record)
 
     def handle_request(self, record):
         self.send_request(record)
@@ -240,9 +246,11 @@ class PBFT:
             stored_record['index'] = self.state['index']
             self.state['index'] += 1
             self.executioner.lpush('execution', json.dumps((self.me, stored_record)))
+            self.db.delete(f'requests.{stored_record["hash_code"]}')
+            self.check_terminate(stored_record)
         self.state['block'] = []
-        self.db.delete(f'requests.{self.state["hash_code"]}')
         self.db.delete(f'receipts.{self.state["hash_code"]}')
+        self.state["hash_code"] = None
 
 
 
