@@ -60,8 +60,9 @@ class Navigator:
         return reply
 
     def register_agent(self, record):
-        self.db.lpush('execution', json.dumps((self.identity, record)))
-        print(self.identity, 'send to execution', record['action'])
+        self.db.lpush('execution', self.identity)
+        self.db.lpush('execution:'+self.identity, json.dumps(record))
+        self.logger.warning('i sent to execution')
         return None
 
     def get_contracts(self, _record):
@@ -82,9 +83,8 @@ class Navigator:
     def join_contract(self, record):
         message = record['message']
         partner = Partner(message['address'], message['agent'],
-                          os.getenv('MY_ADDRESS'), self.identity, None)
+                          os.getenv('MY_ADDRESS'), self.identity, None, None)
         partner.connect(message['contract'], message['profile'])
-        print(self.identity, 'request to join', message['agent'])
         return None
 
     def stamp_to_consensus(self, record):
@@ -93,8 +93,9 @@ class Navigator:
         self.send_to_consensus(record)
 
     def send_to_consensus(self, record):
-        self.db.lpush('consensus', json.dumps((self.identity, record)))
-        print(self.identity, 'sent to consensus', record['action'])
+        self.db.lpush('consensus', self.identity)
+        self.db.lpush('consensus:'+self.identity, json.dumps(record))
+        self.logger.warning('i sent to consensus')
         return None
 
     def contract_read(self, record):

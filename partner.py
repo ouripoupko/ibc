@@ -2,12 +2,13 @@ import requests
 
 
 class Partner:
-    def __init__(self, address, pid, my_address, me, queue):
+    def __init__(self, address, pid, my_address, me, queue, logger):
         self.address = address
         self.pid = pid
         self.my_address = my_address
         self.me = me
         self.queue = queue
+        self.logger = logger
 
     def __repr__(self):
         return str({'class': 'Partner', 'id': self.pid, 'address': self.address})
@@ -38,4 +39,5 @@ class Partner:
                         'params': {'action': 'a2a_consent'},
                         'json': {'from': self.me, 'to': self.pid,
                                  'msg': {'step': step, 'data': data}}})
+        self.logger.warning('p sent to ibc')
         return {'reply': 'message sent to partner'}

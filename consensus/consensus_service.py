@@ -1,21 +1,20 @@
 from redis import Redis
 import json
-from queue import Queue
 import logging
-import sys
 from threading import Thread
-from queue import Empty
 
 from consensus_navigator import ConsensusNavigator
 
+from my_timer import Timers
+
 redis_port = 6379
+timer = Timers()
 
 class AgentThread(Thread):
 
-    def __init__(self, identity, queue, a_logger):
+    def __init__(self, identity, a_logger):
         self.identity = identity
         self.logger = a_logger
-        self.queue = queue
         self.navigators : dict[str, ConsensusNavigator] = {}
         super().__init__()
 
@@ -25,36 +24,39 @@ class AgentThread(Thread):
     def run(self):
         self.logger.info('starting')
         while True:
-            try:
-                a_record = self.queue.get(timeout=60)
+            payload = db.blmpop(20, 1, 'consensus:'+self.identity, direction='RIGHT', count=100)
+            self.logger.warning('c get %s', self.identity)
+            if not payload:
+                break
+            message_list = payload[1]
+            for message in message_list:
+                a_record = json.loads(message)
                 self.logger.debug('%s: take record from queue: %s', self.identity, a_record['action'])
                 contract = a_record['contract']
                 if contract not in self.navigators:
-                    self.navigators[contract] = ConsensusNavigator(self.identity, contract, redis_port, logger)
+                    self.navigators[contract] = ConsensusNavigator(self.identity, contract, redis_port, logger, timer)
+                timer.start(self.identity + '_all')
                 self.navigators[contract].handle_record(a_record)
-            except Empty:
-                break
-        list(self.navigators.values())[0].contract.timer.report()
+                timer.stop(self.identity + '_all')
+            self.logger.warning('c out %s', self.identity)
         self.logger.info('stopping')
+        if self.identity == 'agent_00000':
+            timer.report()
         self.close()
 
 
 if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
+    logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
         level=logging.INFO,
         datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger('ibc2')
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.WARNING)
 #    logger.addHandler(logging.StreamHandler(sys.stdout))
     db = Redis(host='localhost', port=redis_port, db=0)
-    queues = {}
     agents = {}
     while True:
-        agent, record = json.loads(db.brpop(['consensus'])[1])
-        logger.debug('%s: take record from redis: %s', agent, record['action'])
-        if agent not in queues:
-            queues[agent] = Queue()
-        queues[agent].put(record)
+        agent = db.brpop(['consensus'])[1].decode()
+        logger.debug('%s: take agent from redis: %s', agent)
         if agent not in agents or not agents[agent].is_alive():
-            agents[agent] = AgentThread(agent, queues[agent], logger)
+            agents[agent] = AgentThread(agent, logger)
             agents[agent].start()

@@ -28,12 +28,11 @@ class Dissemination:
             if record['agent'] == self.me:
                 for partner in self.partners:
                     if partner.pid != self.me:
-                        print('sending record from ' + record['agent'] + ' by ' + self.me + ' to ' + partner.me)
                         partner.disseminate(record)
                     else:
-                        print('skipping sending to myself')
+                        pass
             else:
-                print('handling message that isn\'t mine')
+                pass
             return [record]
         else:
             self.logger.error('I should not be here')

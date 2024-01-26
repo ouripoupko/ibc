@@ -1,5 +1,4 @@
 from threading import Thread
-from queue import Queue, Empty
 import json
 import os
 
@@ -10,9 +9,8 @@ from contract_execution import ContractExecution
 from redis import Redis
 
 class ExecutionNavigator(Thread):
-    def __init__(self, identity, queue: Queue, mongo_port, redis_port, logger):
+    def __init__(self, identity, mongo_port, redis_port, logger):
         self.identity = identity
-        self.queue = queue
         self.mongo_port = mongo_port
         self.redis_port = redis_port
         self.logger = logger
@@ -51,7 +49,6 @@ class ExecutionNavigator(Thread):
         identity_doc = self.agents[self.identity]
         self.contracts_db = self.identity_doc.get_sub_collection('contracts')
         self.ledger = BlockChain(identity_doc, self.logger)
-        print('registered agent', self.identity)
 
     def deploy_contract(self, record):
         if self.contracts_db is None:
@@ -64,28 +61,29 @@ class ExecutionNavigator(Thread):
         self.contracts[hash_code] = contract
         contract.create(record)
         self.db.publish(self.identity, record['contract'])
-        print(self.identity, 'deploy contract', record['contract'])
 
     def a2a_connect(self, record):
         contract = self.get_contract(record['contract'])
         record['status'] = contract.join(record)
         record['action'] = 'int_partner'
-        self.db.lpush('consensus', json.dumps((self.identity, record)))
+        self.db.lpush('consensus', self.identity)
+        self.db.lpush('consensus:'+self.identity, json.dumps(record))
+        self.logger.warning('e sent to consensus')
         self.db.publish(self.identity, record['contract'])
-        print(self.identity, 'connect', record['agent'])
 
     def contract_write(self, record):
         contract = self.get_contract(record['contract'])
         contract.call(record, True)
         self.db.publish(self.identity, record['contract'])
-        print(self.identity, 'contract_write')
 
     def run(self):
         while True:
-            try:
-                record = self.queue.get(timeout=60)
-            except Empty:
+            message = self.db.brpop(['execution:'+self.identity], 60)
+            self.logger.warning('e get %s', self.identity)
+            if not message:
                 break
+            record = json.loads(message[1])
             action = self.actions[record['type']].get(record['action'])
             action(record)
+            self.logger.warning('e out %s', self.identity)
         self.close()

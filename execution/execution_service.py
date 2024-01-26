@@ -1,6 +1,5 @@
 from redis import Redis
-import json
-from queue import Queue
+import logging
 
 from execution_navigator import ExecutionNavigator
 
@@ -8,15 +7,15 @@ mongo_port = 27017
 redis_port = 6379
 
 if __name__ == '__main__':
-    logger = None
+    logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
+        level=logging.INFO,
+        datefmt='%Y-%m-%d %H:%M:%S')
+    logger = logging.getLogger('ibc3')
+    logger.setLevel(logging.WARNING)
     db = Redis(host='localhost', port=redis_port, db=0)
     navigators = {}
-    queues = {}
     while True:
-        agent, record = json.loads(db.brpop(['execution'])[1])
-        if agent not in queues:
-            queues[agent] = Queue()
-        queues[agent].put(record)
+        agent = db.brpop(['execution'])[1].decode()
         if agent not in navigators or not navigators[agent].is_alive():
-            navigators[agent] = ExecutionNavigator(agent, queues[agent], mongo_port, redis_port, None)
+            navigators[agent] = ExecutionNavigator(agent, mongo_port, redis_port, logger)
             navigators[agent].start()

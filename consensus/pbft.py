@@ -13,10 +13,11 @@ class ProtocolStep(Enum):
 
 
 class PBFT:
-    def __init__(self, contract_name, me, partners, db: RedisJson, executioner: Redis, logger):
+    def __init__(self, contract_name, me, partners, db: RedisJson, executioner: Redis, logger, timer):
         self.db = db
         self.executioner = executioner
         self.logger = logger
+        self.timer = timer
         if 'state' not in self.db.object_keys(None):
             self.db.merge(None, {'requests': {}, 'receipts': {},
                                'state': {'view': 0,
@@ -29,6 +30,8 @@ class PBFT:
                                          'block': [],
                                          'direct': []}})
         self.state = self.db.get('state')
+        self.requests = self.db.get('requests')
+        self.receipts = self.db.get('receipts')
         self.contract_name = contract_name
         self.me = me
         self.partners = partners
@@ -41,6 +44,11 @@ class PBFT:
                          ProtocolStep.PREPARE: lambda x: self.receive_prepare(x),
                          ProtocolStep.COMMIT: lambda x: self.receive_commit(x)}
         self.run_protocol()
+
+    def close(self):
+        self.db.set('state', self.state)
+        self.db.set('receipts', self.receipts)
+        self.db.set('requests', self.requests)
 
     def leader_is_me(self):
         return self.names[self.order[self.state['view']]] == self.me
@@ -55,7 +63,7 @@ class PBFT:
         block = []
         for code in records:
             block.append(code)
-            request = self.db.get(f'requests.{code}')
+            request = self.requests[code]
             if self.check_terminate(request['record'], False):
                 break
         return block
@@ -63,10 +71,10 @@ class PBFT:
     def check_request(self):
         directs = self.up_to_a2a_connect(self.state['direct'])
         while directs and not self.terminate:
-            request = self.db.get(f'requests.{directs.pop(0)}')
+            request = self.requests[directs.pop(0)]
             self.execute_direct(request['record'], True)
         for sent, checked in self.state['sent'].items():
-            request = self.db.get(f'requests.{sent}')
+            request = self.requests[sent]
             self.resend_request(request['record'], checked)
         if not self.terminate:
             if self.state['pre_prepare']:
@@ -100,9 +108,9 @@ class PBFT:
 
     def store_request(self, data):
         self.state['requests'].append(data['d'])
-        self.db.set(f'requests.{data["d"]}', {'record': data['o'],
-                                              'timestamp': data['t'],
-                                              'client': data['c']})
+        self.requests[data['d']] = {'record': data['o'],
+                                    'timestamp': data['t'],
+                                    'client': data['c']}
 
     def send_pre_prepare(self):
         index = self.state['index']
@@ -112,6 +120,7 @@ class PBFT:
                 'n': index,
                 'd': hashlib.sha256(str(block).encode('utf-8')).hexdigest(),
                 'l': block}
+        self.logger.info('sending pre prepare')
         for partner in self.partners:
             partner.consent(self.contract_name, ProtocolStep.PRE_PREPARE.name, data)
         self.store_pre_prepare(data)
@@ -137,7 +146,7 @@ class PBFT:
 
     def check_pre_prepare(self):
         all_exist = True
-        stored = self.db.object_keys('requests')
+        stored = self.requests.keys()
         for key in self.state['block']:
             if key not in stored:
                 all_exist = False
@@ -168,19 +177,19 @@ class PBFT:
         self.store_phase(data, ProtocolStep.COMMIT)
 
     def make_sure_array_exists(self, record, phase):
-        if record not in self.db.object_keys('receipts'):
-            self.db.set(f'receipts.{record}', {phase: []})
-        if phase not in self.db.object_keys(f'receipts.{record}'):
-            self.db.set(f'receipts.{record}.{phase}', [])
+        if record not in self.receipts:
+            self.receipts[record] = {phase: []}
+        if phase not in self.receipts[record]:
+            self.receipts[record][phase] = []
 
     def store_phase(self, data, phase):
         self.make_sure_array_exists(data['d'], phase.name)
-        self.db.array_append(f'receipts.{data["d"]}.{phase.name}', data)
+        self.receipts[data['d']][phase.name].append(data)
 
     def check_phase(self):
         hash_code = self.state['hash_code']
         self.make_sure_array_exists(hash_code, self.state['step'])
-        receipts = self.db.get(f'receipts.{hash_code}.{self.state["step"]}')
+        receipts = self.receipts[hash_code][self.state["step"]]
         if len(receipts) * 3 > len(self.order) * 2:
             names = set()
             for item in receipts:
@@ -194,15 +203,17 @@ class PBFT:
 
     def execute_direct(self, record, clean_up = False):
         self.state['index'] += 1
-        self.executioner.lpush('execution', json.dumps((self.me, record)))
+        self.executioner.lpush('execution', self.me)
+        self.executioner.lpush('execution:'+self.me, json.dumps(record))
+        self.logger.warning('c sent to execution')
         self.check_terminate(record)
         if clean_up:
-            self.db.delete(f'requests.{record["hash_code"]}')
+            self.requests.pop(record["hash_code"])
             self.state['direct'].remove(record["hash_code"])
 
     def handle_direct(self, record):
         if self.terminate:
-            self.db.set(f'requests.{record["hash_code"]}', {'record': record})
+            self.requests[record["hash_code"]] = {'record': record}
             self.state['direct'].append(record['hash_code'])
         else:
             self.execute_direct(record)
@@ -237,19 +248,22 @@ class PBFT:
             in_the_middle = self.state['step'] != ProtocolStep.REQUEST.name
             if (no_pre_prepare and no_requests) or in_the_middle or self.terminate:
                 break
-        self.db.set('state', self.state)
 
     def execute(self):
         for key in self.state['block']:
-            request = self.db.get(f'requests.{key}')
+            request = self.requests[key]
             stored_record = request['record']
             stored_record['index'] = self.state['index']
             self.state['index'] += 1
-            self.executioner.lpush('execution', json.dumps((self.me, stored_record)))
-            self.db.delete(f'requests.{stored_record["hash_code"]}')
+            if self.me == 'agent_00000':
+                self.logger.info('sending to execution %s', stored_record)
+            self.executioner.lpush('execution', self.me)
+            self.executioner.lpush('execution:'+self.me, json.dumps(stored_record))
+            self.logger.warning('c sent to execution')
+            self.requests.pop(stored_record["hash_code"])
             self.check_terminate(stored_record)
         self.state['block'] = []
-        self.db.delete(f'receipts.{self.state["hash_code"]}')
+        self.receipts.pop(self.state["hash_code"])
         self.state["hash_code"] = None
 
 

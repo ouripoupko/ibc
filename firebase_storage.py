@@ -25,8 +25,6 @@ class StorageBridge:
         try:
             return method(*args)
         except Exception as err:
-            print('*** I caught something ***')
-            print(format(err))
             return False
 
     def get_collection(self, doc=None, name=None, collection=None, transaction=None):

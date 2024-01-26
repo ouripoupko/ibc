@@ -1,17 +1,18 @@
 import requests
 
-server = 'http://localhost:5001'
 agents = [f'agent_{str(index).zfill(5)}' for index in range(20)]
+servers = [f'http://localhost:5001/' for index in range(20)]
+print(servers)
 f = open('delib.py', 'r')
 contract_code = f.read()
 f.close()
 
-for agent in agents:
-    requests.put(f'{server}/ibc/app/{agent}',
+for i in range(len(agents)):
+    requests.put(f'{servers[i]}/ibc/app/{agents[i]}',
                  params={'action': 'register_agent'},
                  json={})
 
-reply = requests.put(f'{server}/ibc/app/{agents[0]}',
+reply = requests.put(f'{servers[0]}/ibc/app/{agents[0]}',
                      params={'action': 'deploy_contract'},
                      json={'address': 'http://localhost:5001/',
                            'pid': agents[0],
@@ -25,28 +26,28 @@ reply = requests.put(f'{server}/ibc/app/{agents[0]}',
 contract = reply.json()
 print(contract)
 
-for agent in agents[1:]:
-    requests.put(f'{server}/ibc/app/{agent}',
+for i in range(1, len(agents)):
+    requests.put(f'{servers[i]}/ibc/app/{agents[i]}',
                  params={'action': 'join_contract'},
-                 json={'address': f'{server}/',
+                 json={'address': f'{servers[0]}/',
                        'agent': agents[0],
                        'contract': contract,
                        'profile': ''})
 
 
-requests.post(f'{server}/ibc/app/{agents[0]}/{contract}/create_statement',
+requests.post(f'{servers[0]}/ibc/app/{agents[0]}/{contract}/create_statement',
               params={'action': 'contract_write'},
               json={'name': 'create_statement',
                     'values': {'parent': None, 'text': 'Hello World'}})
 
 wait = input()
 
-for agent in agents:
-    reply = requests.post(f'{server}/ibc/app/{agent}/{contract}/get_statements',
+for i in range(len(agents)):
+    reply = requests.post(f'{servers[i]}/ibc/app/{agents[i]}/{contract}/get_statements',
               params={'action': 'contract_read'},
               json={'name': 'get_statements',
                     'values': {'parent': None}})
-    print(agent)
+    print(agents[i])
     print(reply.json())
 
 
