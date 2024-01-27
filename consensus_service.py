@@ -22,26 +22,32 @@ class AgentThread(Thread):
         for navigator in self.navigators.values():
             navigator.close()
     def run(self):
+        count = 0
+        loops = 0
         self.logger.info('starting')
         while True:
             payload = db.blmpop(20, 1, 'consensus:'+self.identity, direction='RIGHT', count=100)
-            self.logger.warning('c get %s', self.identity)
+            timer.start(self.identity + '_all')
+            self.logger.info('c get %s', self.identity)
             if not payload:
                 break
             message_list = payload[1]
+            loops += 1
+            count += len(message_list)
             for message in message_list:
                 a_record = json.loads(message)
                 self.logger.debug('%s: take record from queue: %s', self.identity, a_record['action'])
                 contract = a_record['contract']
                 if contract not in self.navigators:
                     self.navigators[contract] = ConsensusNavigator(self.identity, contract, redis_port, logger, timer)
-                timer.start(self.identity + '_all')
                 self.navigators[contract].handle_record(a_record)
-                timer.stop(self.identity + '_all')
             self.logger.warning('c out %s', self.identity)
+            timer.stop(self.identity + '_all')
         self.logger.info('stopping')
         if self.identity == 'agent_00000':
             timer.report()
+
+        print(count, loops)
         self.close()
 
 
@@ -50,7 +56,7 @@ if __name__ == '__main__':
         level=logging.INFO,
         datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger('ibc2')
-    logger.setLevel(logging.WARNING)
+    logger.setLevel(logging.ERROR)
 #    logger.addHandler(logging.StreamHandler(sys.stdout))
     db = Redis(host='localhost', port=redis_port, db=0)
     agents = {}

@@ -58,25 +58,19 @@ class ConsensusNavigator:
             self.contract.process(record, direct)
 
     def int_partner(self, record, _direct):
-        self.timer.start(self.identity + '_partner')
         if self.identity == 'agent_00000':
             self.logger.info('%s: update partner: %s', self.identity, record['message']['msg']['pid'])
         if record['status']:
             message = record['message']['msg']
             self.contract.partner(message['pid'], message['address'])
-        self.timer.stop(self.identity + '_partner')
 
     def a2a_consent(self, record, _direct):
         self.logger.debug('%s: receive consensus %s: %s: %s', self.identity, record['message']['from'],
                           record['message']['msg']['step'], record['message']['msg']['data']['d'])
         if not self.contract.exists():
-            self.timer.start(self.identity + '_consent1')
             self.delay_queue.append(record)
-            self.timer.stop(self.identity + '_consent1')
         else:
-            self.timer.start(self.identity + '_consent2')
             self.contract.consent(record)
-            self.timer.stop(self.identity + '_consent2')
 
     def handle_record(self, record):
         action = self.actions[record['type']].get(record['action'])

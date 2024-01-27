@@ -1,11 +1,10 @@
-import time
 from datetime import datetime
 import hashlib
 import json
 import os
 
 from partner import Partner
-from execution.blockchain import BlockChain
+from blockchain import BlockChain
 from mongodb_storage import DBBridge
 from contract_view import ContractView
 
@@ -62,7 +61,7 @@ class Navigator:
     def register_agent(self, record):
         self.db.lpush('execution', self.identity)
         self.db.lpush('execution:'+self.identity, json.dumps(record))
-        self.logger.warning('i sent to execution')
+        self.logger.info('i sent to execution')
         return None
 
     def get_contracts(self, _record):
@@ -95,7 +94,7 @@ class Navigator:
     def send_to_consensus(self, record):
         self.db.lpush('consensus', self.identity)
         self.db.lpush('consensus:'+self.identity, json.dumps(record))
-        self.logger.warning('i sent to consensus')
+        self.logger.warning('i sent consensus')
         return None
 
     def contract_read(self, record):

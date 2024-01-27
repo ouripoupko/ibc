@@ -1,20 +1,10 @@
 from builtins import __build_class__
-import numpy as np
-from numpy.linalg import eig
 from datetime import datetime
 import hashlib
 import random
 
-def my_eig(array):
-    npa = np.array(array)
-    npa = npa / npa.sum(axis=0)
-    w, v = eig(npa)
-    w.sort()
-    return w.tolist()
-
 def hashcode(something):
     return hashlib.sha256(str(something).encode('utf-8')).hexdigest()
-
 
 def elapsed_time(start, end):
     delta = datetime.strptime(end, '%Y%m%d%H%M%S%f') - datetime.strptime(start, '%Y%m%d%H%M%S%f')
@@ -82,7 +72,7 @@ class State:
                   {'__build_class__': __build_class__, '__name__': __name__,
                    'str': str, 'int': int, 'list': list, 'range': range, 'dict': dict, 'len': len,
                    'master': self.master, 'timestamp': self.timestamp, 'Storage': self.get_storage,
-                   'partners': self.get_partner_keys, 'eig': my_eig, 'print': print, 'type': type, 'set': set,
+                   'partners': self.get_partner_keys, 'print': print, 'type': type, 'set': set,
                    'enumerate': enumerate, 'abs': abs, 'sum': sum, 'min': min, 'elapsed_time': elapsed_time,
                    'hashcode': hashcode, 'random': self.random, 'read': self.read}},
              empty_locals)

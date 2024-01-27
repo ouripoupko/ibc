@@ -205,7 +205,7 @@ class PBFT:
         self.state['index'] += 1
         self.executioner.lpush('execution', self.me)
         self.executioner.lpush('execution:'+self.me, json.dumps(record))
-        self.logger.warning('c sent to execution')
+        self.logger.info('c sent to execution')
         self.check_terminate(record)
         if clean_up:
             self.requests.pop(record["hash_code"])
@@ -259,7 +259,7 @@ class PBFT:
                 self.logger.info('sending to execution %s', stored_record)
             self.executioner.lpush('execution', self.me)
             self.executioner.lpush('execution:'+self.me, json.dumps(stored_record))
-            self.logger.warning('c sent to execution')
+            self.logger.info('c sent to execution')
             self.requests.pop(stored_record["hash_code"])
             self.check_terminate(stored_record)
         self.state['block'] = []

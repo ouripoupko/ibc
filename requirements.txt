@@ -1,12 +1,6 @@
-bson==0.5.10
-Flask==3.0.0
-Flask-Cors==3.0.10
-grpcio
+Flask==3.0.1
+Flask-Cors==4.0.0
 pymongo~=4.2.0
 requests~=2.31.0
-testresources
 redis~=5.0.1
-setuptools~=69.0.2
-sseclient==0.0.27
-numpy==1.23.3
-py-evm==0.6.1a2
+gunicorn

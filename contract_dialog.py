@@ -60,12 +60,8 @@ class ContractDialog:
                 partners.append(Partner(address, key, self.my_address, self.identity, self.queue, self.logger))
         if self.contract_db['protocol'] == 'BFT':
             if self.protocol:
-                self.timer.start(self.identity + '_pbft_close')
                 self.protocol.close()
-                self.timer.stop(self.identity+'_pbft_close')
-            self.timer.start(self.identity+'_pbft_open')
             self.protocol = PBFT(self.contract, self.identity, partners, self.json_db, self.db0, self.logger, self.timer)
-            self.timer.stop(self.identity + '_pbft_open')
         self.deployed = True
 
     def process(self, record, direct):

@@ -30,7 +30,7 @@ redis_port = 6379
            defaults={'method': ''})
 @app.route('/ibc/app/<identity>/<contract>/<method>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def ibc_handler(identity, contract, method):
-    logger.warning('i get %s', identity)
+    logger.info('i get %s', identity)
     msg = request.get_json() if request.is_json else None
     action = request.args.get('action')
     record = {'type': request.method,
@@ -45,7 +45,7 @@ def ibc_handler(identity, contract, method):
     response = jsonify(navigator.handle_record(record))
     response.headers.add('Access-Control-Allow-Origin', '*')
     logger.info('response ' + log_id+ ': ' + str(response.get_json()))
-    logger.warning('i out %s', identity)
+    logger.info('i out %s', identity)
     return response
 
 
@@ -104,6 +104,6 @@ if __name__ == '__main__':
     # logger = logging.getLogger('werkzeug')
     logging.getLogger('werkzeug').setLevel(logging.ERROR)
     logger = logging.getLogger('ibc')
-    logger.setLevel(logging.WARNING)
+    logger.setLevel(logging.ERROR)
     # app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     app.run(host='0.0.0.0', port=port, use_reloader=False)  # , threaded=False)

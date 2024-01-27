@@ -39,5 +39,5 @@ class Partner:
                         'params': {'action': 'a2a_consent'},
                         'json': {'from': self.me, 'to': self.pid,
                                  'msg': {'step': step, 'data': data}}})
-        self.logger.warning('p sent to ibc')
+        self.logger.info('p sent to ibc')
         return {'reply': 'message sent to partner'}

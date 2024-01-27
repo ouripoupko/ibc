@@ -2,7 +2,7 @@ from threading import Thread
 import json
 import os
 
-from execution.blockchain import BlockChain
+from blockchain import BlockChain
 from mongodb_storage import DBBridge
 from contract_execution import ContractExecution
 
@@ -68,7 +68,7 @@ class ExecutionNavigator(Thread):
         record['action'] = 'int_partner'
         self.db.lpush('consensus', self.identity)
         self.db.lpush('consensus:'+self.identity, json.dumps(record))
-        self.logger.warning('e sent to consensus')
+        self.logger.warning('e sent consensus')
         self.db.publish(self.identity, record['contract'])
 
     def contract_write(self, record):
@@ -79,11 +79,11 @@ class ExecutionNavigator(Thread):
     def run(self):
         while True:
             message = self.db.brpop(['execution:'+self.identity], 60)
-            self.logger.warning('e get %s', self.identity)
+            self.logger.info('e get %s', self.identity)
             if not message:
                 break
             record = json.loads(message[1])
             action = self.actions[record['type']].get(record['action'])
             action(record)
-            self.logger.warning('e out %s', self.identity)
+            self.logger.info('e out %s', self.identity)
         self.close()

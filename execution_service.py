@@ -11,7 +11,7 @@ if __name__ == '__main__':
         level=logging.INFO,
         datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger('ibc3')
-    logger.setLevel(logging.WARNING)
+    logger.setLevel(logging.ERROR)
     db = Redis(host='localhost', port=redis_port, db=0)
     navigators = {}
     while True:
