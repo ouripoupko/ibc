@@ -1,6 +1,7 @@
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 import uuid
+import os
 
 
 class WritePermissionException(Exception):
@@ -13,7 +14,7 @@ class DBBridge:
         self.allow_write = False
 
     def connect(self, port, allow_write = False):
-        self.connection = MongoClient(port=int(port))
+        self.connection = MongoClient(host=os.getenv('MONGODB_GATEWAY'), port=int(port))
         self.allow_write = allow_write
         return self
 

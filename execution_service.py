@@ -1,5 +1,6 @@
 from redis import Redis
 import logging
+import os
 
 from execution_navigator import ExecutionNavigator
 
@@ -12,7 +13,7 @@ if __name__ == '__main__':
         datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger('ibc3')
     logger.setLevel(logging.ERROR)
-    db = Redis(host='localhost', port=redis_port, db=0)
+    db = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
     navigators = {}
     while True:
         agent = db.brpop(['execution'])[1].decode()

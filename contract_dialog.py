@@ -1,6 +1,7 @@
 from threading import Thread
 from redis import Redis
 from queue import Queue
+import os
 
 from redis_json import RedisJson
 from partner import Partner
@@ -21,8 +22,8 @@ class ContractDialog:
         self.contract = contract
         self.logger = logger
         self.timer = timer
-        self.db0 = Redis(host='localhost', port=redis_port, db=0)
-        self.db1 = Redis(host='localhost', port=redis_port, db=1)
+        self.db0 = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
+        self.db1 = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=1)
         self.json_db = RedisJson(self.db1, identity, contract)
         self.queue = Queue()
         Thread(target=sender, args=(self.queue,)).start()

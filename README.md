@@ -28,3 +28,5 @@ The state is basically the application data of each of the contracts. <br><br>
 		- give it access to the db
 		- write its relevant memory to state
 	- connect() - write which agents are using the contract
+
+Installation

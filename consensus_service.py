@@ -2,6 +2,7 @@ from redis import Redis
 import json
 import logging
 from threading import Thread
+import os
 
 from consensus_navigator import ConsensusNavigator
 
@@ -58,7 +59,7 @@ if __name__ == '__main__':
     logger = logging.getLogger('ibc2')
     logger.setLevel(logging.ERROR)
 #    logger.addHandler(logging.StreamHandler(sys.stdout))
-    db = Redis(host='localhost', port=redis_port, db=0)
+    db = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
     agents = {}
     while True:
         agent = db.brpop(['consensus'])[1].decode()

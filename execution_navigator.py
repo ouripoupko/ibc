@@ -14,7 +14,7 @@ class ExecutionNavigator(Thread):
         self.mongo_port = mongo_port
         self.redis_port = redis_port
         self.logger = logger
-        self.db = Redis(host='localhost', port=redis_port, db=0)
+        self.db = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
         self.actions = {'PUT':  {'register_agent': self.register_agent,
                                  'deploy_contract': self.deploy_contract,
                                  'a2a_connect': self.a2a_connect},

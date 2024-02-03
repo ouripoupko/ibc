@@ -16,7 +16,7 @@ class Navigator:
         self.logger = logger
         self.identity = identity
         self.redis_port = redis_port
-        self.db = Redis(host='localhost', port=redis_port, db=0)
+        self.db = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
         self.actions = {'GET':  {'is_exist_agent': self.is_exist_agent,
                                  'get_contracts': self.get_contracts},
                         'PUT':  {'register_agent': self.register_agent,

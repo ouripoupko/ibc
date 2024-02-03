@@ -14,7 +14,7 @@ app = Flask(__name__, static_folder='ibc', instance_path=f'{os.getcwd()}/instanc
 CORS(app)
 gunicorn_logger = logging.getLogger('gunicorn.error')
 app.logger.handlers = gunicorn_logger.handlers
-app.logger.setLevel(logging.ERROR)
+app.logger.setLevel(logging.INFO)
 logger = app.logger
 port = None
 mongo_port = 27017
@@ -30,7 +30,6 @@ redis_port = 6379
            defaults={'method': ''})
 @app.route('/ibc/app/<identity>/<contract>/<method>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def ibc_handler(identity, contract, method):
-    logger.info('i get %s', identity)
     msg = request.get_json() if request.is_json else None
     action = request.args.get('action')
     record = {'type': request.method,
@@ -45,7 +44,6 @@ def ibc_handler(identity, contract, method):
     response = jsonify(navigator.handle_record(record))
     response.headers.add('Access-Control-Allow-Origin', '*')
     logger.info('response ' + log_id+ ': ' + str(response.get_json()))
-    logger.info('i out %s', identity)
     return response
 
 
@@ -56,7 +54,8 @@ def stream():
     generals = [identities[index] for index in range(len(identities)) if not contracts[index]]
 
     def event_stream():
-        db = Redis(host='localhost', port=redis_port, db=0)
+        logger.info('**** stream connected ****')
+        db = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
         channel = db.pubsub()
         channel.subscribe(*identities)
         while True:
@@ -104,6 +103,6 @@ if __name__ == '__main__':
     # logger = logging.getLogger('werkzeug')
     logging.getLogger('werkzeug').setLevel(logging.ERROR)
     logger = logging.getLogger('ibc')
-    logger.setLevel(logging.ERROR)
+    logger.setLevel(logging.INFO)
     # app.wsgi_app = LoggingMiddleware(app.wsgi_app)
     app.run(host='0.0.0.0', port=port, use_reloader=False)  # , threaded=False)

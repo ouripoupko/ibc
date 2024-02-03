@@ -4,3 +4,4 @@ pymongo~=4.2.0
 requests~=2.31.0
 redis~=5.0.1
 gunicorn
+gevent
