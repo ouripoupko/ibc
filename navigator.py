@@ -35,11 +35,11 @@ class Navigator:
         self.ledger = None
 
     def open(self):
-        self.storage_bridge = DBBridge(self.logger).connect(self.mongo_port)
+        self.storage_bridge = DBBridge().connect(self.mongo_port)
         self.agents = self.storage_bridge.get_root_collection()
         self.identity_doc = self.agents[self.identity]
         self.contracts_db = self.identity_doc.get_sub_collection('contracts') if self.identity_doc.exists() else None
-        self.ledger = BlockChain(self.identity_doc, self.logger) if self.identity_doc.exists() else None
+        self.ledger = BlockChain(self.identity_doc) if self.identity_doc.exists() else None
 
     def close(self):
         self.storage_bridge.disconnect()
@@ -82,7 +82,7 @@ class Navigator:
     def join_contract(self, record):
         message = record['message']
         partner = Partner(message['address'], message['agent'],
-                          os.getenv('MY_ADDRESS'), self.identity, None, None)
+                          os.getenv('MY_ADDRESS'), self.identity, None)
         partner.connect(message['contract'], message['profile'])
         return None
 
