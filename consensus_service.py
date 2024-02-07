@@ -6,16 +6,12 @@ import os
 
 from consensus_navigator import ConsensusNavigator
 
-from my_timer import Timers
-
 redis_port = 6379
-timer = Timers()
 
 class AgentThread(Thread):
 
-    def __init__(self, identity, a_logger):
+    def __init__(self, identity):
         self.identity = identity
-        self.logger = a_logger
         self.navigators : dict[str, ConsensusNavigator] = {}
         super().__init__()
 
@@ -23,47 +19,38 @@ class AgentThread(Thread):
         for navigator in self.navigators.values():
             navigator.close()
     def run(self):
-        count = 0
-        loops = 0
-        self.logger.info('starting')
+        logger.info('starting main loop for agent %s', self.identity)
         while True:
-            payload = db.blmpop(20, 1, 'consensus:'+self.identity, direction='RIGHT', count=100)
-            timer.start(self.identity + '_all')
-            self.logger.info('c get %s', self.identity)
+            payload = db.blmpop(60, 1, 'consensus:'+self.identity, direction='RIGHT', count=100)
             if not payload:
                 break
             message_list = payload[1]
-            loops += 1
-            count += len(message_list)
             for message in message_list:
-                a_record = json.loads(message)
-                self.logger.debug('%s: take record from queue: %s', self.identity, a_record['action'])
-                contract = a_record['contract']
+                record = json.loads(message)
+                logger.debug('%s take record from queue: %s', self.identity, record['action'])
+                contract = record['contract']
                 if contract not in self.navigators:
-                    self.navigators[contract] = ConsensusNavigator(self.identity, contract, redis_port, logger, timer)
-                self.navigators[contract].handle_record(a_record)
-            self.logger.warning('c out %s', self.identity)
-            timer.stop(self.identity + '_all')
-        self.logger.info('stopping')
-        if self.identity == 'agent_00000':
-            timer.report()
-
-        print(count, loops)
+                    self.navigators[contract] = ConsensusNavigator(self.identity, contract, redis_port)
+                self.navigators[contract].handle_record(record)
+        logger.info('exit main loop for agent %s', self.identity)
         self.close()
 
 
-if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
-        level=logging.INFO,
-        datefmt='%Y-%m-%d %H:%M:%S')
-    logger = logging.getLogger('ibc2')
-    logger.setLevel(logging.ERROR)
-#    logger.addHandler(logging.StreamHandler(sys.stdout))
-    db = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
+def main_loop():
     agents = {}
     while True:
         agent = db.brpop(['consensus'])[1].decode()
-        logger.debug('%s: take agent from redis: %s', agent)
+        logger.debug('take agent from redis: %s', agent)
         if agent not in agents or not agents[agent].is_alive():
-            agents[agent] = AgentThread(agent, logger)
+            agents[agent] = AgentThread(agent)
             agents[agent].start()
+
+
+if __name__ == '__main__':
+    logging.basicConfig(format='%(asctime)s.%(msecs)03d %(name)-10s %(levelname)-8s %(message)s',
+                        filename='consensus.log',
+                        level=logging.INFO,
+                        datefmt='%Y-%m-%d %H:%M:%S')
+    logger = logging.getLogger('Main')
+    db = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
+    main_loop()

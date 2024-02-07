@@ -3,6 +3,7 @@ import hashlib
 import json
 from redis_json import RedisJson
 from redis import Redis
+import logging
 
 class ProtocolStep(Enum):
     REQUEST = auto()
@@ -13,11 +14,10 @@ class ProtocolStep(Enum):
 
 
 class PBFT:
-    def __init__(self, contract_name, me, partners, db: RedisJson, executioner: Redis, logger, timer):
+    def __init__(self, contract_name, me, partners, db: RedisJson, executioner: Redis):
         self.db = db
         self.executioner = executioner
-        self.logger = logger
-        self.timer = timer
+        self.logger = logging.getLogger('PBFT')
         if 'state' not in self.db.object_keys(None):
             self.db.merge(None, {'requests': {}, 'receipts': {},
                                'state': {'view': 0,
@@ -120,7 +120,7 @@ class PBFT:
                 'n': index,
                 'd': hashlib.sha256(str(block).encode('utf-8')).hexdigest(),
                 'l': block}
-        self.logger.info('sending pre prepare')
+        self.logger.debug('sending pre prepare')
         for partner in self.partners:
             partner.consent(self.contract_name, ProtocolStep.PRE_PREPARE.name, data)
         self.store_pre_prepare(data)
@@ -205,7 +205,7 @@ class PBFT:
         self.state['index'] += 1
         self.executioner.lpush('execution', self.me)
         self.executioner.lpush('execution:'+self.me, json.dumps(record))
-        self.logger.info('c sent to execution')
+        self.logger.debug('c sent to execution')
         self.check_terminate(record)
         if clean_up:
             self.requests.pop(record["hash_code"])
@@ -223,7 +223,7 @@ class PBFT:
         self.run_protocol()
 
     def handle_consent(self, record):
-        # self.logger.debug(self.me + ' ' + str(record))
+        self.logger.debug('%s handle_consent %s', self.me, record)
         message = record['message']['msg']
         step = ProtocolStep[message['step']]
         data = message['data']
@@ -255,11 +255,9 @@ class PBFT:
             stored_record = request['record']
             stored_record['index'] = self.state['index']
             self.state['index'] += 1
-            if self.me == 'agent_00000':
-                self.logger.info('sending to execution %s', stored_record)
             self.executioner.lpush('execution', self.me)
             self.executioner.lpush('execution:'+self.me, json.dumps(stored_record))
-            self.logger.info('c sent to execution')
+            self.logger.debug('c sent to execution')
             self.requests.pop(stored_record["hash_code"])
             self.check_terminate(stored_record)
         self.state['block'] = []

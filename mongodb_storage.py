@@ -8,9 +8,8 @@ class WritePermissionException(Exception):
     pass
 
 class DBBridge:
-    def __init__(self, logger):
+    def __init__(self):
         self.connection = None
-        self.logger = logger
         self.allow_write = False
 
     def connect(self, port, allow_write = False):

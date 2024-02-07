@@ -2,12 +2,11 @@ from threading import Thread
 from redis import Redis
 from queue import Queue
 import os
+import logging
 
 from redis_json import RedisJson
 from partner import Partner
 from pbft import PBFT
-
-from my_timer import Timers
 
 def sender(queue):
     while True:
@@ -17,11 +16,10 @@ def sender(queue):
         item['func'](item['url'], params=item['params'], json=item['json'])
 
 class ContractDialog:
-    def __init__(self, identity, my_address, contract, redis_port, logger, timer):
+    def __init__(self, identity, my_address, contract, redis_port):
         self.identity = identity
         self.contract = contract
-        self.logger = logger
-        self.timer = timer
+        self.logger = logging.getLogger('Dialog')
         self.db0 = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
         self.db1 = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=1)
         self.json_db = RedisJson(self.db1, identity, contract)
@@ -58,11 +56,11 @@ class ContractDialog:
         partners = []
         for key, address in self.partners_db.items():
             if key != self.identity:
-                partners.append(Partner(address, key, self.my_address, self.identity, self.queue, self.logger))
+                partners.append(Partner(address, key, self.my_address, self.identity, self.queue))
         if self.contract_db['protocol'] == 'BFT':
             if self.protocol:
                 self.protocol.close()
-            self.protocol = PBFT(self.contract, self.identity, partners, self.json_db, self.db0, self.logger, self.timer)
+            self.protocol = PBFT(self.contract, self.identity, partners, self.json_db, self.db0)
         self.deployed = True
 
     def process(self, record, direct):

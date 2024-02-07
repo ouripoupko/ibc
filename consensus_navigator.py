@@ -1,6 +1,7 @@
 import os
 from collections import deque
 from enum import Enum, auto
+import logging
 
 from contract_dialog import ContractDialog
 from partner import Partner
@@ -15,11 +16,10 @@ class NavigatorState(Enum):
 
 class ConsensusNavigator:
 
-    def __init__(self, identity, contract_code, redis_port, logger, timer):
+    def __init__(self, identity, contract_code, redis_port):
         self.identity = identity
-        self.logger = logger
-        self.timer = timer
-        self.contract = ContractDialog(self.identity, os.getenv('MY_ADDRESS'), contract_code, redis_port, logger, timer)
+        self.logger = logging.getLogger('Navigator')
+        self.contract = ContractDialog(self.identity, os.getenv('MY_ADDRESS'), contract_code, redis_port)
         self.delay_queue = deque()
         self.actions = {'PUT': {'deploy_contract': self.deploy_contract,
                                 'a2a_connect': self.process,
@@ -32,14 +32,14 @@ class ConsensusNavigator:
         self.contract.close()
 
     def deploy_contract(self, record, direct):
-        self.logger.debug('%s: deploy contract:-: %s', self.identity, record['contract'])
+        self.logger.info('%s deploy contract %s', self.identity, record['contract'])
         self.contract.deploy(record['message']['pid'], record['message']['address'], record['message']['protocol'])
         self.contract.process(record, direct)
         while self.delay_queue:
             self.handle_record(self.delay_queue.popleft())
 
     def a2a_reply_join(self, record, _direct):
-        self.logger.debug('%s: got reply join: %s', self.identity, record)
+        self.logger.info('%s got reply join %s', self.identity, record)
         message = record['message']
         status = message['msg']['status']
         if status:
@@ -51,21 +51,20 @@ class ConsensusNavigator:
                 action(records[key], True)
 
     def process(self, record, direct):
-        self.logger.debug('%s: initiate consensus: %s: %s', self.identity, record['action'], record)
+        self.logger.info('%s initiate consensus %s', self.identity, record)
         if not self.contract.exists():
             self.delay_queue.append(record)
         else:
             self.contract.process(record, direct)
 
     def int_partner(self, record, _direct):
-        if self.identity == 'agent_00000':
-            self.logger.info('%s: update partner: %s', self.identity, record['message']['msg']['pid'])
+        self.logger.info('%s update partner %s', self.identity, record['message']['msg']['pid'])
         if record['status']:
             message = record['message']['msg']
             self.contract.partner(message['pid'], message['address'])
 
     def a2a_consent(self, record, _direct):
-        self.logger.debug('%s: receive consensus %s: %s: %s', self.identity, record['message']['from'],
+        self.logger.debug('%s receive consensus from %s step %s hash %s', self.identity, record['message']['from'],
                           record['message']['msg']['step'], record['message']['msg']['data']['d'])
         if not self.contract.exists():
             self.delay_queue.append(record)

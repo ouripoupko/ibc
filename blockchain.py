@@ -1,7 +1,6 @@
 class BlockChain:
-    def __init__(self, agent_doc, logger):
+    def __init__(self, agent_doc):
         self.ledger = agent_doc.get_sub_collection('ledger')
-        self.logger = logger
 
     def log(self, record):
         stored = self.ledger.get_last()

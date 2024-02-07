@@ -12,7 +12,7 @@ def sender(queue):
 
 
 class ContractExecution:
-    def __init__(self, contract_doc, hash_code, me, my_address, navigator, ledger, logger):
+    def __init__(self, contract_doc, hash_code, me, my_address, navigator, ledger):
         # the database
         self.contract_doc = contract_doc
         # the contract
@@ -20,7 +20,6 @@ class ContractExecution:
         self.me = me
         self.my_address = my_address
         self.ledger = ledger
-        self.logger = logger
         self.queue = Queue()
         Thread(target=sender, args=(self.queue,), daemon=True).start()
         # the partners

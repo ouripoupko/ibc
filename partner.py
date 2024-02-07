@@ -1,14 +1,15 @@
 import requests
+import logging
 
 
 class Partner:
-    def __init__(self, address, pid, my_address, me, queue, logger):
+    def __init__(self, address, pid, my_address, me, queue):
         self.address = address
         self.pid = pid
         self.my_address = my_address
         self.me = me
         self.queue = queue
-        self.logger = logger
+        self.logger = logging.getLogger('Partner')
 
     def __repr__(self):
         return str({'class': 'Partner', 'id': self.pid, 'address': self.address})
