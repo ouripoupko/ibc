@@ -32,33 +32,33 @@ class ConsensusNavigator:
         self.contract.close()
 
     def deploy_contract(self, record, direct):
-        self.logger.info('%s deploy contract %s', self.identity, record['contract'])
+        self.logger.info('%-15s%s %s', 'deploy', self.identity, record['contract'])
         self.contract.deploy(record['message']['pid'], record['message']['address'], record['message']['protocol'])
         self.contract.process(record, direct)
         while self.delay_queue:
             self.handle_record(self.delay_queue.popleft())
 
     def a2a_reply_join(self, record, _direct):
-        self.logger.info('%s got reply join %s', self.identity, record)
         message = record['message']
+        self.logger.info('%-15s%s %s', 'reply join', self.identity, message['msg']['pid'])
         status = message['msg']['status']
         if status:
             partner = Partner(message['msg']['address'], message['msg']['pid'],
-                              os.getenv('MY_ADDRESS'), self.identity, None, self.logger)
+                              os.getenv('MY_ADDRESS'), self.identity, None)
             records = partner.get_ledger(record['contract'])
             for key in sorted(records.keys()):
                 action = self.actions[records[key]['type']].get(records[key]['action'])
                 action(records[key], True)
 
     def process(self, record, direct):
-        self.logger.info('%s initiate consensus %s', self.identity, record)
+        self.logger.info('%-15s%s %s', 'start protocol', self.identity, record['action'])
         if not self.contract.exists():
             self.delay_queue.append(record)
         else:
             self.contract.process(record, direct)
 
     def int_partner(self, record, _direct):
-        self.logger.info('%s update partner %s', self.identity, record['message']['msg']['pid'])
+        self.logger.info('%-15s%s %s', 'update partner', self.identity, record['message']['msg']['pid'])
         if record['status']:
             message = record['message']['msg']
             self.contract.partner(message['pid'], message['address'])

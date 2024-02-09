@@ -46,7 +46,7 @@ class ExecutionNavigator(Thread):
 
     def register_agent(self, _record):
         # a client adds an identity
-        self.logger.info('agent %s registered', self.identity)
+        self.logger.info('%-15s%s', 'registered', self.identity)
         self.agents[self.identity] = {'address': os.getenv('MY_ADDRESS')}
         identity_doc = self.agents[self.identity]
         self.contracts_db = self.identity_doc.get_sub_collection('contracts')
@@ -56,7 +56,7 @@ class ExecutionNavigator(Thread):
         if self.contracts_db is None:
             self.logger.warning('unregistered agent tried to deploy contract')
             return
-        self.logger.info('agent %s deploy contract %s', self.identity, record['contract'])
+        self.logger.info('%-15s%s %s', 'deploy contract', self.identity, record['contract'])
         hash_code = record['hash_code']
         self.contracts_db[hash_code] = record['message']
         contract = ContractExecution(self.contracts_db[hash_code], hash_code,
@@ -67,7 +67,7 @@ class ExecutionNavigator(Thread):
         self.db.publish(self.identity, record['contract'])
 
     def a2a_connect(self, record):
-        self.logger.info('a2a_connect me %s newcomer %s contract %s', self.identity, 'tbd', record['contract'])
+        self.logger.info('%-15s%s %s %s', 'a2a_connect', self.identity, 'tbd', record['contract'])
         contract = self.get_contract(record['contract'])
         record['status'] = contract.join(record)
         record['action'] = 'int_partner'
@@ -76,7 +76,7 @@ class ExecutionNavigator(Thread):
         self.db.publish(self.identity, record['contract'])
 
     def contract_write(self, record):
-        self.logger.info('contract write agent %s contract %s call $s',
+        self.logger.info('%-15s%s %s %s', 'contract write',
                          self.identity, record['contract'], record['method'])
         contract = self.get_contract(record['contract'])
         contract.call(record, True)
@@ -85,7 +85,7 @@ class ExecutionNavigator(Thread):
     def run(self):
         while True:
             message = self.db.brpop(['execution:'+self.identity], 60)
-            self.logger.debug('e get %s', self.identity)
+            self.logger.info('%-15s%s', 'got message', self.identity)
             if not message:
                 break
             record = json.loads(message[1])

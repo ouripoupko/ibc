@@ -19,7 +19,7 @@ class AgentThread(Thread):
         for navigator in self.navigators.values():
             navigator.close()
     def run(self):
-        logger.info('starting main loop for agent %s', self.identity)
+        logger.info('%-15s%s', 'main loop', self.identity)
         while True:
             payload = db.blmpop(60, 1, 'consensus:'+self.identity, direction='RIGHT', count=100)
             if not payload:
@@ -32,16 +32,18 @@ class AgentThread(Thread):
                 if contract not in self.navigators:
                     self.navigators[contract] = ConsensusNavigator(self.identity, contract, redis_port)
                 self.navigators[contract].handle_record(record)
-        logger.info('exit main loop for agent %s', self.identity)
+        logger.info('%-15s%s', 'exit main loop', self.identity)
         self.close()
 
 
 def main_loop():
     agents = {}
+    logger.info('start main loop')
     while True:
         agent = db.brpop(['consensus'])[1].decode()
-        logger.debug('take agent from redis: %s', agent)
+        logger.info('%-15s%s', 'wake up call', agent)
         if agent not in agents or not agents[agent].is_alive():
+            logger.info('%-15s%s', 'waking up', agent)
             agents[agent] = AgentThread(agent)
             agents[agent].start()
 
