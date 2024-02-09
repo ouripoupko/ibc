@@ -85,7 +85,7 @@ class ExecutionNavigator(Thread):
     def run(self):
         while True:
             message = self.db.brpop(['execution:'+self.identity], 60)
-            self.logger.info('%-15s%s', 'got message', self.identity)
+            self.logger.info('%-15s%s %s', 'got message', self.identity, record['action'])
             if not message:
                 break
             record = json.loads(message[1])
