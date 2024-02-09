@@ -15,8 +15,11 @@ if __name__ == '__main__':
     logger = logging.getLogger('Main')
     db = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
     navigators = {}
+    logger.info('start main loop')
     while True:
         agent = db.brpop(['execution'])[1].decode()
+        logger.info('wake up call for agent %s', agent)
         if agent not in navigators or not navigators[agent].is_alive():
+            logger.info('agent is asleep. waking hime up %s', agent)
             navigators[agent] = ExecutionNavigator(agent, mongo_port, redis_port)
             navigators[agent].start()

@@ -46,6 +46,7 @@ class ExecutionNavigator(Thread):
 
     def register_agent(self, _record):
         # a client adds an identity
+        self.logger.info('agent %s registered', self.identity)
         self.agents[self.identity] = {'address': os.getenv('MY_ADDRESS')}
         identity_doc = self.agents[self.identity]
         self.contracts_db = self.identity_doc.get_sub_collection('contracts')
@@ -53,7 +54,9 @@ class ExecutionNavigator(Thread):
 
     def deploy_contract(self, record):
         if self.contracts_db is None:
+            self.logger.warning('unregistered agent tried to deploy contract')
             return
+        self.logger.info('agent %s deploy contract %s', self.identity, record['contract'])
         hash_code = record['hash_code']
         self.contracts_db[hash_code] = record['message']
         contract = ContractExecution(self.contracts_db[hash_code], hash_code,
@@ -64,15 +67,17 @@ class ExecutionNavigator(Thread):
         self.db.publish(self.identity, record['contract'])
 
     def a2a_connect(self, record):
+        self.logger.info('a2a_connect me %s newcomer %s contract %s', self.identity, 'tbd', record['contract'])
         contract = self.get_contract(record['contract'])
         record['status'] = contract.join(record)
         record['action'] = 'int_partner'
         self.db.lpush('consensus', self.identity)
         self.db.lpush('consensus:'+self.identity, json.dumps(record))
-        self.logger.debug('e sent consensus')
         self.db.publish(self.identity, record['contract'])
 
     def contract_write(self, record):
+        self.logger.info('contract write agent %s contract %s call $s',
+                         self.identity, record['contract'], record['method'])
         contract = self.get_contract(record['contract'])
         contract.call(record, True)
         self.db.publish(self.identity, record['contract'])
