@@ -52,7 +52,7 @@ class ContractExecution:
         if approve:
             self.connect(msg['address'], msg['pid'], msg['profile'])
         if message['to'] == self.me:
-            partner = Partner(msg['address'], msg['pid'], self.my_address, self.me, self.queue, None)
+            partner = Partner(msg['address'], msg['pid'], self.my_address, self.me, self.queue)
             partner.reply_join(self.hash_code, approve)
         return approve
 

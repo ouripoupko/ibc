@@ -85,12 +85,13 @@ class ExecutionNavigator(Thread):
     def run(self):
         while True:
             message = self.db.brpop(['execution:'+self.identity], 60)
-            self.logger.info('%-15s%s %s', 'got message', self.identity, record['action'])
             if not message:
                 break
             record = json.loads(message[1])
+            self.logger.info('%-15s%s %s', 'got message', self.identity, record['action'])
             action = self.actions[record['type']].get(record['action'])
             action(record)
+        self.logger.info('%-15s%s', 'time out', self.identity)
         self.close()
 
 # BlockChain and ContractExecution are generated in two places. looks like a bug
