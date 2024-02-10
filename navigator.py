@@ -38,15 +38,16 @@ class Navigator:
         self.storage_bridge = DBBridge().connect(self.mongo_port)
         self.agents = self.storage_bridge.get_root_collection()
         self.identity_doc = self.agents[self.identity]
-        self.contracts_db = self.identity_doc.get_sub_collection('contracts') if self.identity_doc.exists() else None
-        self.ledger = BlockChain(self.identity_doc) if self.identity_doc.exists() else None
+        if self.identity_doc.exists() and 'contracts' in self.identity_doc and 'ledger' in self.identity_doc:
+            self.contracts_db = self.identity_doc.get_sub_collection('contracts')
+            self.ledger = BlockChain(self.identity_doc)
 
     def close(self):
         self.storage_bridge.disconnect()
         self.db.close()
 
     def get_contract(self, hash_code):
-        if hash_code not in self.contracts_db:
+        if not self.contracts_db or hash_code not in self.contracts_db:
             return None
         contract = ContractView(self.contracts_db[hash_code], hash_code, self, self.ledger, self.logger)
         contract.run()
