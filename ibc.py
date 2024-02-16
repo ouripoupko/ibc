@@ -42,6 +42,7 @@ def ibc_handler(identity, contract, method):
     logger.info('record ' + log_id+ ': ' + str(record))
     navigator = Navigator(identity, mongo_port, redis_port, logger)
     response = jsonify(navigator.handle_record(record))
+    del navigator
     response.headers.add('Access-Control-Allow-Origin', '*')
     logger.info('response ' + log_id+ ': ' + str(response.get_json()))
     return response
