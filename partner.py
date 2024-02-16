@@ -15,28 +15,28 @@ class Partner:
         return str({'class': 'Partner', 'id': self.pid, 'address': self.address})
 
     def connect(self, contract, profile):
-        return requests.put(self.address + 'ibc/app/' + self.pid + '/' + contract,
+        return requests.put(self.address + '/ibc/app/' + self.pid + '/' + contract,
                             params={'action': 'a2a_connect'},
                             json={'from': self.me, 'to': self.pid,
                                   'msg': {'address': self.my_address, 'pid': self.me, 'profile': profile}})
 
     def reply_join(self, contract, status):
         self.queue.put({'func': requests.put,
-                        'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
+                        'url': self.address + '/ibc/app/' + self.pid + '/' + contract,
                         'params': {'action': 'a2a_reply_join'},
                         'json': {'from': self.me, 'to': self.pid,
                                  'msg': {'address': self.my_address, 'pid': self.me, 'status': status}}})
         return {'reply': 'message sent to partner'}
 
     def get_ledger(self, contract, index = 0):
-        return requests.post(self.address + 'ibc/app/' + self.pid + '/' + contract,
+        return requests.post(self.address + '/ibc/app/' + self.pid + '/' + contract,
                              params={'action': 'a2a_get_ledger'},
                              json={'from': self.me, 'to': self.pid,
                                    'msg': {'index': index, 'pid': self.me}}).json()
 
     def consent(self, contract, step, data):
         self.queue.put({'func': requests.put,
-                        'url': self.address + 'ibc/app/' + self.pid + '/' + contract,
+                        'url': self.address + '/ibc/app/' + self.pid + '/' + contract,
                         'params': {'action': 'a2a_consent'},
                         'json': {'from': self.me, 'to': self.pid,
                                  'msg': {'step': step, 'data': data}}})
