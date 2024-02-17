@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from redis import Redis
 
-from navigator import Navigator
+from dispatcher.navigator import Navigator
 
 # Create the application instance
 app = Flask(__name__, static_folder='ibc', instance_path=f'{os.getcwd()}/instance')

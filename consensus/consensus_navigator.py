@@ -3,8 +3,8 @@ from collections import deque
 from enum import Enum, auto
 import logging
 
-from contract_dialog import ContractDialog
-from partner import Partner
+from consensus.contract_dialog import ContractDialog
+from common.partner import Partner
 
 class NavigatorState(Enum):
     INITIAL = auto()

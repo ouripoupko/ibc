@@ -1,7 +1,5 @@
-import json
-
 from threading import Thread
-from state import State
+from common.state import State
 
 class ContractView(Thread):
     def __init__(self, contract_doc, hash_code, navigator, ledger, logger):

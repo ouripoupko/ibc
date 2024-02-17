@@ -4,9 +4,9 @@ from queue import Queue
 import os
 import logging
 
-from redis_json import RedisJson
-from partner import Partner
-from pbft import PBFT
+from consensus.redis_json import RedisJson
+from common.partner import Partner
+from consensus.pbft import PBFT
 
 def sender(queue):
     while True:
@@ -37,8 +37,9 @@ class ContractDialog:
             self.create()
 
     def close(self):
-        self.json_db.set('contract', self.contract_db)
-        self.json_db.set('partners', self.partners_db)
+        if self.contract_db:
+            self.json_db.set('contract', self.contract_db)
+            self.json_db.set('partners', self.partners_db)
         if self.protocol:
             self.protocol.close()
         self.db0.close()

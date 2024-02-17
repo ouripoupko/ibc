@@ -2,7 +2,7 @@ from redis import Redis
 import logging
 import os
 
-from execution_navigator import ExecutionNavigator
+from execution.execution_navigator import ExecutionNavigator
 
 mongo_port = 27017
 redis_port = 6379

@@ -2,12 +2,11 @@ from threading import Thread
 import json
 import os
 import logging
-
-from blockchain import BlockChain
-from mongodb_storage import DBBridge
-from contract_execution import ContractExecution
-
 from redis import Redis
+
+from common.blockchain import BlockChain
+from common.mongodb_storage import DBBridge
+from execution.contract_execution import ContractExecution
 
 class ExecutionNavigator(Thread):
     def __init__(self, identity, mongo_port, redis_port):

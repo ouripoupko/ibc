@@ -4,7 +4,7 @@ import logging
 from threading import Thread
 import os
 
-from consensus_navigator import ConsensusNavigator
+from consensus.consensus_navigator import ConsensusNavigator
 
 redis_port = 6379
 

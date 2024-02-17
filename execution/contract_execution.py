@@ -1,7 +1,8 @@
-from partner import Partner
 from queue import Queue
 from threading import Thread
-from state import State
+
+from common.partner import Partner
+from common.state import State
 
 def sender(queue):
     while True:

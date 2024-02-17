@@ -3,10 +3,10 @@ import hashlib
 import json
 import os
 
-from partner import Partner
-from blockchain import BlockChain
-from mongodb_storage import DBBridge
-from contract_view import ContractView
+from common.partner import Partner
+from common.blockchain import BlockChain
+from common.mongodb_storage import DBBridge
+from dispatcher.contract_view import ContractView
 
 from redis import Redis
 

@@ -1,9 +1,10 @@
 from enum import Enum, auto
 import hashlib
 import json
-from redis_json import RedisJson
 from redis import Redis
 import logging
+
+from consensus.redis_json import RedisJson
 
 class ProtocolStep(Enum):
     REQUEST = auto()
