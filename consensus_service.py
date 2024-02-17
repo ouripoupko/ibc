@@ -6,6 +6,7 @@ import os
 
 from consensus.consensus_navigator import ConsensusNavigator
 
+mongo_port = 27017
 redis_port = 6379
 
 class AgentThread(Thread):
@@ -31,7 +32,7 @@ class AgentThread(Thread):
                     logger.debug('%s take record from queue: %s', self.identity, record['action'])
                     contract = record['contract']
                     if contract not in self.navigators:
-                        self.navigators[contract] = ConsensusNavigator(self.identity, contract, redis_port)
+                        self.navigators[contract] = ConsensusNavigator(self.identity, contract, redis_port, mongo_port)
                     self.navigators[contract].handle_record(record)
             logger.info('%-15s%s', 'exit main loop', self.identity)
             self.close()

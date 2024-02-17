@@ -43,13 +43,12 @@ class ExecutionNavigator(Thread):
             self.contracts[hash_code].run()
         return self.contracts[hash_code]
 
-    def register_agent(self, _record):
+    def register_agent(self, record):
         # a client adds an identity
         self.logger.info('%-15s%s', 'registered', self.identity)
-        self.agents[self.identity] = {'address': os.getenv('MY_ADDRESS')}
-        identity_doc = self.agents[self.identity]
+        self.identity_doc['address'] = record['message']['address']
         self.contracts_db = self.identity_doc.get_sub_collection('contracts')
-        self.ledger = BlockChain(identity_doc)
+        self.ledger = BlockChain(self.identity_doc)
 
     def deploy_contract(self, record):
         if self.contracts_db is None:

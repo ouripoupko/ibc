@@ -1,10 +1,10 @@
-import os
 from collections import deque
 from enum import Enum, auto
 import logging
 
 from consensus.contract_dialog import ContractDialog
 from common.partner import Partner
+from common.mongodb_storage import DBBridge
 
 class NavigatorState(Enum):
     INITIAL = auto()
@@ -16,10 +16,11 @@ class NavigatorState(Enum):
 
 class ConsensusNavigator:
 
-    def __init__(self, identity, contract_code, redis_port):
+    def __init__(self, identity, hash_code, redis_port, mongo_port):
         self.identity = identity
         self.logger = logging.getLogger('Navigator')
-        self.contract = ContractDialog(self.identity, os.getenv('MY_ADDRESS'), contract_code, redis_port)
+        contract, partners = self.read_from_storage(mongo_port, hash_code)
+        self.contract = ContractDialog(self.identity, hash_code, contract, partners, redis_port)
         self.delay_queue = deque()
         self.actions = {'PUT': {'deploy_contract': self.deploy_contract,
                                 'a2a_connect': self.process,
@@ -27,6 +28,22 @@ class ConsensusNavigator:
                                 'a2a_consent': self.a2a_consent,
                                 'int_partner': self.int_partner},
                         'POST': {'contract_write': self.process}}
+
+    def read_from_storage(self, mongo_port, hash_code):
+        db_bridge = DBBridge().connect(mongo_port)
+        agents = db_bridge.get_root_collection()
+        identity_doc = agents[self.identity]
+        contract = None
+        partners = None
+        if identity_doc.exists() and 'contracts' in identity_doc:
+            contracts_db = identity_doc.get_sub_collection('contracts')
+            contract_doc = contracts_db[hash_code]
+            contract = contract_doc.get_dict()
+            if contract_doc.exists() and 'pda_partners' in contract_doc:
+                partners_db = contract_doc.get_sub_collection('pda_partners')
+                partners = {key: partners_db[key]['address'] for key in partners_db}
+        db_bridge.disconnect()
+        return contract, partners
 
     def close(self):
         self.contract.close()
@@ -44,7 +61,7 @@ class ConsensusNavigator:
         status = message['msg']['status']
         if status:
             partner = Partner(message['msg']['address'], message['msg']['pid'],
-                              os.getenv('MY_ADDRESS'), self.identity, None)
+                              None, self.identity, None)
             records = partner.get_ledger(record['contract'])
             for key in sorted(records.keys()):
                 action = self.actions[records[key]['type']].get(records[key]['action'])
@@ -74,5 +91,3 @@ class ConsensusNavigator:
     def handle_record(self, record):
         action = self.actions[record['type']].get(record['action'])
         action(record, False)
-
-# initializing this process from redis creates synchronization issue between redis and mongo. not good.

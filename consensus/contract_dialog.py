@@ -16,7 +16,7 @@ def sender(queue):
         item['func'](item['url'], params=item['params'], json=item['json'])
 
 class ContractDialog:
-    def __init__(self, identity, my_address, contract, redis_port):
+    def __init__(self, identity, contract, contract_store, partner_store, redis_port):
         self.identity = identity
         self.contract = contract
         self.logger = logging.getLogger('Dialog')
@@ -26,20 +26,14 @@ class ContractDialog:
         self.queue = Queue()
         Thread(target=sender, args=(self.queue,)).start()
         self.protocol = None
-        self.my_address = my_address
         self.deployed = False
-        self.contract_db = None
-        self.partners_db = None
-
-        if 'contract' in self.json_db.object_keys(None):
-            self.contract_db = self.json_db.get('contract')
-            self.partners_db = self.json_db.get('partners')
+        self.my_address = contract_store['address'] if contract_store else None
+        self.contract_db = {'protocol': contract_store['protocol']} if contract_store else None
+        self.partners_db = partner_store if partner_store else {}
+        if self.contract_db:
             self.create()
 
     def close(self):
-        if self.contract_db:
-            self.json_db.set('contract', self.contract_db)
-            self.json_db.set('partners', self.partners_db)
         if self.protocol:
             self.protocol.close()
         self.db0.close()

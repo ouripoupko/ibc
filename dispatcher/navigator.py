@@ -83,10 +83,12 @@ class Navigator:
         return record['hash_code']
 
     def join_contract(self, record):
+        self.open()
         message = record['message']
         partner = Partner(message['address'], message['agent'],
-                          os.getenv('MY_ADDRESS'), self.identity, None)
+                          self.identity_doc['address'], self.identity, None)
         partner.connect(message['contract'], message['profile'])
+        self.close()
         return None
 
     def stamp_to_consensus(self, record):
