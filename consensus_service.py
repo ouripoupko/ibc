@@ -19,21 +19,24 @@ class AgentThread(Thread):
         for navigator in self.navigators.values():
             navigator.close()
     def run(self):
-        logger.info('%-15s%s', 'main loop', self.identity)
-        while True:
-            payload = db.blmpop(60, 1, 'consensus:'+self.identity, direction='RIGHT', count=100)
-            if not payload:
-                break
-            message_list = payload[1]
-            for message in message_list:
-                record = json.loads(message)
-                logger.debug('%s take record from queue: %s', self.identity, record['action'])
-                contract = record['contract']
-                if contract not in self.navigators:
-                    self.navigators[contract] = ConsensusNavigator(self.identity, contract, redis_port)
-                self.navigators[contract].handle_record(record)
-        logger.info('%-15s%s', 'exit main loop', self.identity)
-        self.close()
+        try:
+            logger.info('%-15s%s', 'main loop', self.identity)
+            while True:
+                payload = db.blmpop(60, 1, 'consensus:'+self.identity, direction='RIGHT', count=100)
+                if not payload:
+                    break
+                message_list = payload[1]
+                for message in message_list:
+                    record = json.loads(message)
+                    logger.debug('%s take record from queue: %s', self.identity, record['action'])
+                    contract = record['contract']
+                    if contract not in self.navigators:
+                        self.navigators[contract] = ConsensusNavigator(self.identity, contract, redis_port)
+                    self.navigators[contract].handle_record(record)
+            logger.info('%-15s%s', 'exit main loop', self.identity)
+            self.close()
+        except Exception as e:
+            logger.exception('Unhandled exception caught')
 
 
 def main_loop():
