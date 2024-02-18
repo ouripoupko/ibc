@@ -5,8 +5,10 @@ class RedisJson:
         self.db = db
         self.agent = agent
         self.contract = contract
-        if not self.db.exists(self.agent) or self.contract not in self.db.json().objkeys(self.agent, '.'):
-            self.db.json().set(self.agent, f'.', {self.contract: {}})
+        if not self.db.exists(self.agent):
+            self.db.json().set(self.agent, f'.', {})
+        if self.contract not in self.db.json().objkeys(self.agent, '.'):
+            self.db.json().set(self.agent, f'.{self.contract}', {})
 
     def set(self, path, value, nx = False):
         self.db.json().set(self.agent, f'.{self.contract}{"."+path if path else ""}', value, nx)
