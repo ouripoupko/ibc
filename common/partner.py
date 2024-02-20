@@ -9,7 +9,6 @@ class Partner:
         self.my_address = my_address
         self.me = me
         self.queue = queue
-        self.logger = logging.getLogger('Partner')
 
     def __repr__(self):
         return str({'class': 'Partner', 'id': self.pid, 'address': self.address})
@@ -40,5 +39,4 @@ class Partner:
                         'params': {'action': 'a2a_consent'},
                         'json': {'from': self.me, 'to': self.pid,
                                  'msg': {'step': step, 'data': data}}})
-        self.logger.info('p sent to ibc')
         return {'reply': 'message sent to partner'}

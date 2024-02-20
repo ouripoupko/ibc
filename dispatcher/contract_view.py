@@ -2,13 +2,12 @@ from threading import Thread
 from common.state import State
 
 class ContractView(Thread):
-    def __init__(self, contract_doc, hash_code, navigator, ledger, logger):
+    def __init__(self, contract_doc, hash_code, navigator, ledger):
         # the database
         self.contract_doc = contract_doc
         # the contract
         self.hash_code = hash_code
         self.ledger = ledger
-        self.logger = logger
         self.partners_db = self.contract_doc.get_sub_collection('pda_partners')
         self.state = State(self.contract_doc, self.partners_db, navigator)
 

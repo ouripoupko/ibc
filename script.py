@@ -1,7 +1,8 @@
 import requests
+from time import sleep
 
-agents = [f'agent_{str(index).zfill(5)}' for index in range(20)]
-servers = [f'http://localhost:5001/' for index in range(20)]
+agents = [f'agent_{str(index).zfill(5)}' for index in range(5)]
+servers = [f'http://localhost:5001' for index in range(5)]
 print(servers)
 f = open('delib.py', 'r')
 contract_code = f.read()
@@ -10,11 +11,13 @@ f.close()
 for i in range(len(agents)):
     requests.put(f'{servers[i]}/ibc/app/{agents[i]}',
                  params={'action': 'register_agent'},
-                 json={})
+                 json={'address': servers[i]})
+
+sleep(2)
 
 reply = requests.put(f'{servers[0]}/ibc/app/{agents[0]}',
                      params={'action': 'deploy_contract'},
-                     json={'address': 'http://localhost:5001/',
+                     json={'address': 'http://localhost:5001',
                            'pid': agents[0],
                            'name': 'delib',
                            'protocol': 'BFT',

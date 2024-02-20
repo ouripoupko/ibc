@@ -45,7 +45,7 @@ class ExecutionNavigator(Thread):
 
     def register_agent(self, record):
         # a client adds an identity
-        self.logger.info('%-15s%s', 'registered', self.identity)
+        self.logger.info('%s ~ %-20s ~ %s', record['hash_code'][0:10], 'register agent', self.identity)
         self.identity_doc['address'] = record['message']['address']
         self.contracts_db = self.identity_doc.get_sub_collection('contracts')
         self.ledger = BlockChain(self.identity_doc)
@@ -54,7 +54,7 @@ class ExecutionNavigator(Thread):
         if self.contracts_db is None:
             self.logger.warning('unregistered agent tried to deploy contract')
             return
-        self.logger.info('%-15s%s %s', 'deploy contract', self.identity, record['contract'])
+        self.logger.info('%s ~ %-20s ~ %s', record['hash_code'][0:10], 'deploy contract', self.identity)
         hash_code = record['hash_code']
         self.contracts_db[hash_code] = record['message']
         contract = ContractExecution(self.contracts_db[hash_code], hash_code,
@@ -65,32 +65,30 @@ class ExecutionNavigator(Thread):
         self.db.publish(self.identity, record['contract'])
 
     def a2a_connect(self, record):
-        self.logger.info('%-15s%s %s %s', 'a2a_connect', self.identity, 'tbd', record['contract'])
+        self.logger.info('%s ~ %-20s ~ %s ~ %s', record['hash_code'][0:10], 'a2a connect', self.identity, record['message']['msg']['pid'])
         contract = self.get_contract(record['contract'])
         record['status'] = contract.join(record)
         record['action'] = 'int_partner'
-        self.db.lpush('consensus', self.identity)
-        self.db.lpush('consensus:'+self.identity, json.dumps(record))
+        self.db.lpush('consensus', json.dumps((self.identity, record)))
         self.db.publish(self.identity, record['contract'])
 
     def contract_write(self, record):
-        self.logger.info('%-15s%s %s %s', 'contract write',
-                         self.identity, record['contract'], record['method'])
+        self.logger.info('%s ~ %-20s ~ %s ~ %s', record['hash_code'][0:10], 'contract write', self.identity, record['method'])
         contract = self.get_contract(record['contract'])
         contract.call(record, True)
         self.db.publish(self.identity, record['contract'])
 
     def run(self):
         try:
+            self.logger.info('%s ~ %-20s ~ %s', '----------', 'thread start', self.identity)
             while True:
                 message = self.db.brpop(['execution:'+self.identity], 60)
                 if not message:
                     break
                 record = json.loads(message[1])
-                self.logger.info('%-15s%s %s', 'got message', self.identity, record['action'])
                 action = self.actions[record['type']].get(record['action'])
                 action(record)
-            self.logger.info('%-15s%s', 'time out', self.identity)
+            self.logger.info('%s ~ %-20s ~ %s', '----------', 'exit thread',self.identity)
             self.close()
         except Exception as e:
             self.logger.exception('Unhandled exception caught')

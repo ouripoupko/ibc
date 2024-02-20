@@ -121,7 +121,7 @@ class PBFT:
                 'n': index,
                 'd': hashlib.sha256(str(block).encode('utf-8')).hexdigest(),
                 'l': block}
-        self.logger.debug('sending pre prepare')
+        self.logger.info('%s ~ %-20s ~ %s ~ %s', data['d'][0:10], 'send pre prepare', self.me, block)
         for partner in self.partners:
             partner.consent(self.contract_name, ProtocolStep.PRE_PREPARE.name, data)
         self.store_pre_prepare(data)
@@ -199,18 +199,18 @@ class PBFT:
             if len(names) * 3 > len(self.order) * 2:
                 new_step = ProtocolStep(ProtocolStep[self.state['step']].value + 1)
                 self.state['step'] = new_step.name
+                self.logger.info('%s ~ %-20s ~ %s ~ %s', hash_code[0:10], 'set step', self.me, new_step.name)
                 if new_step is ProtocolStep.COMMIT:
                     self.send_phase(ProtocolStep.COMMIT)
 
     def execute_direct(self, record, clean_up = False):
         self.state['index'] += 1
-        self.executioner.lpush('execution', self.me)
-        self.executioner.lpush('execution:'+self.me, json.dumps(record))
-        self.logger.debug('c sent to execution')
+        self.executioner.lpush('execution', json.dumps((self.me, record)))
+        self.logger.info('%s ~ %-20s ~ %s', record['hash_code'][0:10], 'execute direct', self.me)
         self.check_terminate(record)
         if clean_up:
             self.requests.pop(record["hash_code"])
-            self.state['direct'].remove(record["hash_code"])
+            self.state['direct'].remove(record['hash_code'])
 
     def handle_direct(self, record):
         if self.terminate:
@@ -224,7 +224,6 @@ class PBFT:
         self.run_protocol()
 
     def handle_consent(self, record):
-        self.logger.debug('%s handle_consent %s', self.me, record)
         message = record['message']['msg']
         step = ProtocolStep[message['step']]
         data = message['data']
@@ -256,10 +255,9 @@ class PBFT:
             stored_record = request['record']
             stored_record['index'] = self.state['index']
             self.state['index'] += 1
-            self.executioner.lpush('execution', self.me)
-            self.executioner.lpush('execution:'+self.me, json.dumps(stored_record))
-            self.logger.debug('c sent to execution')
-            self.requests.pop(stored_record["hash_code"])
+            self.executioner.lpush('execution', json.dumps((self.me, stored_record)))
+            self.logger.info('%s ~ %-20s ~ %s', stored_record['hash_code'][0:10], 'execute', self.me)
+            self.requests.pop(stored_record['hash_code'])
             self.check_terminate(stored_record)
         self.state['block'] = []
         self.receipts.pop(self.state["hash_code"])

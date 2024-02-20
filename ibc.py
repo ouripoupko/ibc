@@ -2,6 +2,8 @@ import sys
 import os
 import logging
 import random
+import hashlib
+from datetime import datetime
 
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
@@ -12,10 +14,11 @@ from dispatcher.navigator import Navigator
 # Create the application instance
 app = Flask(__name__, static_folder='ibc', instance_path=f'{os.getcwd()}/instance')
 CORS(app)
-gunicorn_logger = logging.getLogger('gunicorn.error')
-app.logger.handlers = gunicorn_logger.handlers
-app.logger.setLevel(logging.INFO)
-logger = app.logger
+logging.basicConfig(format='%(asctime)s.%(msecs)03d ~ dispatcher ~ %(name)-10s ~ %(levelname)-8s ~ %(message)s',
+                    filename='dispatcher.log',
+                    level=logging.INFO,
+                    datefmt='%Y-%m-%d ~ %H:%M:%S')
+logger = logging.getLogger('Main')
 port = None
 mongo_port = 27017
 redis_port = 6379
@@ -37,14 +40,18 @@ def ibc_handler(identity, contract, method):
               'contract': contract,
               'method': method,
               'message': msg,
-              'agent': identity}
-    log_id = str(random.random())[2:8]
-    logger.info('record ' + log_id+ ': ' + str(record))
-    navigator = Navigator(identity, mongo_port, redis_port, logger)
+              'agent': identity,
+              'timestamp': datetime.now().strftime('%Y%m%d%H%M%S%f')}
+    record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
+
+    if action != 'a2a_consent':
+        logger.info('%s ~ %-20s ~ %s ~ %s', record['hash_code'][0:10], 'request', identity, str(record))
+    navigator = Navigator(identity, mongo_port, redis_port)
     response = jsonify(navigator.handle_record(record))
     del navigator
     response.headers.add('Access-Control-Allow-Origin', '*')
-    logger.info('response ' + log_id+ ': ' + str(response.get_json()))
+    if action != 'a2a_consent':
+        logger.info('%s ~ %-20s ~ %s ~ %s', record['hash_code'][0:10], 'response', identity, str(response.get_json()))
     return response
 
 
@@ -55,7 +62,7 @@ def stream():
     generals = [identities[index] for index in range(len(identities)) if not contracts[index]]
 
     def event_stream():
-        logger.info('**** stream connected ****')
+        logger.info('%s ~ %-20s ~ %s', '----------', 'stream connected', identities)
         db = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
         channel = db.pubsub()
         channel.subscribe(*identities)
@@ -67,7 +74,7 @@ def stream():
                     identity = message.get('channel').decode()
                     index = contracts.index(modified_contract) if modified_contract in contracts else -1
                     if identity in generals or (index >= 0 and identities[index] == identity):
-                        logger.info('found a match ' + contracts[index][0:4] + ' ' + modified_contract[0:4])
+                        logger.info('%s ~ %-20s ~ %s', contracts[index][0:10], 'update client', identity)
                         yield f'data: {{"agent": "{identity}", "contract": "{modified_contract}"}}\n\n'
             else:
                 yield "data: \n\n"

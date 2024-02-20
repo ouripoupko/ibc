@@ -1,7 +1,6 @@
-from datetime import datetime
-import hashlib
 import json
 import os
+import logging
 
 from common.partner import Partner
 from common.blockchain import BlockChain
@@ -11,9 +10,9 @@ from dispatcher.contract_view import ContractView
 from redis import Redis
 
 class Navigator:
-    def __init__(self, identity, mongo_port, redis_port, logger):
+    def __init__(self, identity, mongo_port, redis_port):
         self.mongo_port = mongo_port
-        self.logger = logger
+        self.logger = logging.getLogger('Navigator')
         self.identity = identity
         self.redis_port = redis_port
         self.db = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
@@ -51,7 +50,7 @@ class Navigator:
     def get_contract(self, hash_code):
         if not self.contracts_db or hash_code not in self.contracts_db:
             return None
-        contract = ContractView(self.contracts_db[hash_code], hash_code, self, self.ledger, self.logger)
+        contract = ContractView(self.contracts_db[hash_code], hash_code, self, self.ledger)
         contract.run()
         return contract
 
@@ -62,9 +61,7 @@ class Navigator:
         return reply
 
     def register_agent(self, record):
-        self.db.lpush('execution', self.identity)
-        self.db.lpush('execution:'+self.identity, json.dumps(record))
-        self.logger.info('register_agent sent to execution')
+        self.db.lpush('execution', json.dumps((self.identity, record)))
         return None
 
     def get_contracts(self, _record):
@@ -76,9 +73,8 @@ class Navigator:
         return reply
 
     def deploy_contract(self, record):
-        record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
-        record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
         record['contract'] = record['hash_code']
+        self.logger.info('%s ~ %-20s ~ %s', record['hash_code'][0:10], 'send to consensus', self.identity)
         self.send_to_consensus(record)
         return record['hash_code']
 
@@ -92,14 +88,11 @@ class Navigator:
         return None
 
     def stamp_to_consensus(self, record):
-        record['timestamp'] = datetime.now().strftime('%Y%m%d%H%M%S%f')
-        record['hash_code'] = hashlib.sha256(str(record).encode('utf-8')).hexdigest()
+        self.logger.info('%s ~ %-20s ~ %s', record['hash_code'][0:10], 'send to consensus', self.identity)
         self.send_to_consensus(record)
 
     def send_to_consensus(self, record):
-        self.db.lpush('consensus', self.identity)
-        self.db.lpush('consensus:'+self.identity, json.dumps(record))
-        self.logger.warning('i sent consensus')
+        self.db.lpush('consensus', json.dumps((self.identity, record)))
         return None
 
     def contract_read(self, record):

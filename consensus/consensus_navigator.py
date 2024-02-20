@@ -49,7 +49,7 @@ class ConsensusNavigator:
         self.contract.close()
 
     def deploy_contract(self, record, direct):
-        self.logger.info('%-15s%s %s', 'deploy', self.identity, record['contract'])
+        self.logger.info('%s ~ %-20s ~ %s', record['hash_code'][0:10], 'deploy contract', self.identity)
         self.contract.deploy(record['message']['pid'], record['message']['address'], record['message']['protocol'])
         self.contract.process(record, direct)
         while self.delay_queue:
@@ -57,7 +57,7 @@ class ConsensusNavigator:
 
     def a2a_reply_join(self, record, _direct):
         message = record['message']
-        self.logger.info('%-15s%s %s', 'reply join', self.identity, message['msg']['pid'])
+        self.logger.info('%s ~ %-20s ~ %s ~ %s', record['hash_code'][0:10], 'reply join', self.identity, message['msg']['pid'])
         status = message['msg']['status']
         if status:
             partner = Partner(message['msg']['address'], message['msg']['pid'],
@@ -68,21 +68,19 @@ class ConsensusNavigator:
                 action(records[key], True)
 
     def process(self, record, direct):
-        self.logger.info('%-15s%s %s', 'start protocol', self.identity, record['action'])
+        self.logger.info('%s ~ %-20s ~ %s ~ %s', record['hash_code'][0:10], 'start protocol', self.identity, record['action'])
         if not self.contract.exists():
             self.delay_queue.append(record)
         else:
             self.contract.process(record, direct)
 
     def int_partner(self, record, _direct):
-        self.logger.info('%-15s%s %s', 'update partner', self.identity, record['message']['msg']['pid'])
+        self.logger.info('%s ~ %-20s ~ %s ~ %s', record['hash_code'][0:10], 'update partner', self.identity, record['message']['msg']['pid'])
         if record['status']:
             message = record['message']['msg']
             self.contract.partner(message['pid'], message['address'])
 
     def a2a_consent(self, record, _direct):
-        self.logger.debug('%s receive consensus from %s step %s hash %s', self.identity, record['message']['from'],
-                          record['message']['msg']['step'], record['message']['msg']['data']['d'])
         if not self.contract.exists():
             self.delay_queue.append(record)
         else:
