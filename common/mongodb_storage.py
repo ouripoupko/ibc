@@ -108,7 +108,7 @@ class Document:
         self.parent = parent
 
     def __getitem__(self, key):
-        document = self.storage.collection.find_one({'_id': self.key})
+        document = self.get_dict()
         return document.get(key)
 
     def __setitem__(self, key, value):
@@ -122,10 +122,13 @@ class Document:
         self.storage.collection.update_one({'_id': self.key}, {'$unset': {key: ''}})
 
     def __contains__(self, item):
-        return item in self.storage.collection.find_one({'_id': self.key})
+        return item in self.get_dict()
 
     def __iter__(self):
         return iter(self.get_dict())
+
+    def __len__(self):
+        return len(self.get_dict())
 
     def create_sub_collection(self, name):
         if not self.storage.allow_write:
