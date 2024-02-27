@@ -2,6 +2,7 @@ from builtins import __build_class__
 from datetime import datetime
 import hashlib
 import random
+import logging
 
 def hashcode(something):
     return hashlib.sha256(str(something).encode('utf-8')).hexdigest()
@@ -22,6 +23,7 @@ class State:
         self.current_timestamp = None
         self.caller = None
         self.navigator = navigator
+        self.logger = logging.getLogger('State')
 
     def master(self):
         return self.caller
@@ -33,8 +35,8 @@ class State:
         return self.contract_doc.get_sub_collection(f'contract_{name}')
 
     def get_partners(self):
-        return [{('agent' if key == '_id' else key): self.partners_db[pid][key]
-                 for key in self.partners_db[pid]} for pid in self.partners_db]
+        return [{key: self.partners_db[pid][key]
+                 for key in self.partners_db[pid]} | {'agent': pid} for pid in self.partners_db]
 
     def get_partner_keys(self):
         return [pid for pid in self.partners_db]
@@ -97,6 +99,7 @@ class State:
             try:
                 return m(**msg['values'])
             except (TypeError, Exception) as e:
+                self.logger.exception('caught exception in contract call')
                 return str(e)
         else:
             if method == 'get_partners':

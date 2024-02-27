@@ -91,6 +91,6 @@ class ExecutionNavigator(Thread):
             self.logger.info('%s ~ %-20s ~ %s', '----------', 'exit thread',self.identity)
             self.close()
         except Exception as e:
-            self.logger.exception('Unhandled exception caught')
+            self.logger.exception('Unhandled exception caught %s', self.identity)
 
 # BlockChain and ContractExecution are generated in two places. looks like a bug

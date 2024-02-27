@@ -125,7 +125,7 @@ class Document:
         return item in self.storage.collection.find_one({'_id': self.key})
 
     def __iter__(self):
-        return iter(self.storage.collection.find_one({'_id': self.key}))
+        return iter(self.get_dict())
 
     def create_sub_collection(self, name):
         if not self.storage.allow_write:
@@ -149,7 +149,7 @@ class Document:
         reply = self.storage.collection.find_one({'_id': self.key})
         if reply:
             del reply['_id']
-        return reply
+        return reply or {}
 
     def update(self, value):
         if not self.storage.allow_write:

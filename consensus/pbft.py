@@ -130,6 +130,10 @@ class PBFT:
         if self.terminate or self.state['step'] != ProtocolStep.REQUEST.name:
             self.state['pre_prepare'].append(data)
             return
+        for request in data['l']:
+            if request not in self.state['requests']:
+                self.state['pre_prepare'].append(data)
+                return
         # I should check signatures and digest, but I am lazy
         if data['v'] != self.state['view']:
             return

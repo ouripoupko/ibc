@@ -36,7 +36,7 @@ class AgentThread(Thread):
             logger.info('%s ~ %-20s ~ %s', '----------', 'exit thread', self.identity)
             self.close()
         except Exception as e:
-            logger.exception('Unhandled exception caught')
+            logger.exception('Unhandled exception caught %s', self.identity)
 
 
 def main_loop():
