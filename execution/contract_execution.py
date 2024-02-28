@@ -37,7 +37,7 @@ class ContractExecution:
         self.contract_doc['timestamp'] = record['timestamp']
         self.run()
         self.connect(self.contract_doc['address'], self.contract_doc['pid'], self.contract_doc['profile'])
-        return self.hash_code
+        return True
 
     def run(self):
         self.state.run(self.contract_doc['pid'], self.contract_doc['timestamp'])

@@ -1,7 +1,7 @@
 import sys
 import os
 import logging
-import random
+import json
 import hashlib
 from datetime import datetime
 
@@ -70,12 +70,15 @@ def stream():
             message = channel.get_message(timeout=10)
             if message:
                 if message.get('type') == 'message':
-                    modified_contract = message.get('data').decode()
+                    data = json.loads(message.get('data').decode())
+                    contract = data['contract']
                     identity = message.get('channel').decode()
-                    index = contracts.index(modified_contract) if modified_contract in contracts else -1
+                    index = contracts.index(contract) if (contract and contract in contracts) else -1
                     if identity in generals or (index >= 0 and identities[index] == identity):
                         logger.info('%s ~ %-20s ~ %s', contracts[index][0:10], 'update client', identity)
-                        yield f'data: {{"agent": "{identity}", "contract": "{modified_contract}"}}\n\n'
+                        data['agent'] = identity
+                        yield f'data: {json.dumps(data)}\n\n'
+
             else:
                 yield "data: \n\n"
 
