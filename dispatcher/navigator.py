@@ -62,7 +62,7 @@ class Navigator:
 
     def register_agent(self, record):
         self.db.lpush('execution', json.dumps((self.identity, record)))
-        return None
+        return record['hash_code']
 
     def get_contracts(self, _record):
         self.open()
@@ -85,15 +85,15 @@ class Navigator:
                           self.identity_doc['address'], self.identity, None)
         partner.connect(message['contract'], message['profile'])
         self.close()
-        return None
+        return record['hash_code']
 
     def stamp_to_consensus(self, record):
         self.logger.info('%s ~ %-20s ~ %s', record['hash_code'][0:10], 'send to consensus', self.identity)
-        self.send_to_consensus(record)
+        return self.send_to_consensus(record)
 
     def send_to_consensus(self, record):
         self.db.lpush('consensus', json.dumps((self.identity, record)))
-        return None
+        return record['hash_code']
 
     def contract_read(self, record):
         self.open()

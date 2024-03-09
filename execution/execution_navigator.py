@@ -49,7 +49,10 @@ class ExecutionNavigator(Thread):
         self.identity_doc['address'] = record['message']['address']
         self.contracts_db = self.identity_doc.get_sub_collection('contracts')
         self.ledger = BlockChain(self.identity_doc)
-        self.db.publish(self.identity, json.dumps({'contract': None, 'action': 'register_agent', 'reply': True}))
+        self.db.publish(self.identity, json.dumps({'request': record['hash_code'],
+                                                   'contract': None,
+                                                   'action': 'register_agent',
+                                                   'reply': True}))
 
     def deploy_contract(self, record):
         if self.contracts_db is None:
@@ -63,7 +66,8 @@ class ExecutionNavigator(Thread):
                                      self, self.ledger)
         self.contracts[hash_code] = contract
         reply = contract.create(record)
-        self.db.publish(self.identity, json.dumps({'contract': record['contract'],
+        self.db.publish(self.identity, json.dumps({'request': record['hash_code'],
+                                                   'contract': record['contract'],
                                                    'action': 'deploy_contract',
                                                    'reply': reply}))
 
@@ -73,7 +77,8 @@ class ExecutionNavigator(Thread):
         record['status'] = contract.join(record)
         record['action'] = 'int_partner'
         self.db.lpush('consensus', json.dumps((self.identity, record)))
-        self.db.publish(self.identity, json.dumps({'contract': record['contract'],
+        self.db.publish(self.identity, json.dumps({'request': record['hash_code'],
+                                                   'contract': record['contract'],
                                                    'action': 'a2a_connect',
                                                    'reply': record['status']}))
 
@@ -81,7 +86,8 @@ class ExecutionNavigator(Thread):
         self.logger.info('%s ~ %-20s ~ %s ~ %s', record['hash_code'][0:10], 'contract write', self.identity, record['method'])
         contract = self.get_contract(record['contract'])
         reply = contract.call(record, True)
-        self.db.publish(self.identity, json.dumps({'contract': record['contract'],
+        self.db.publish(self.identity, json.dumps({'request': record['hash_code'],
+                                                   'contract': record['contract'],
                                                    'action': 'contract_write',
                                                    'reply': reply}))
 

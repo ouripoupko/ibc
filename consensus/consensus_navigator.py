@@ -9,13 +9,6 @@ from consensus.contract_dialog import ContractDialog
 from common.partner import Partner
 from common.mongodb_storage import DBBridge
 
-class NavigatorState(Enum):
-    INITIAL = auto()
-    DIRECT = auto()
-    STAGE = auto()
-    NORMAL = auto()
-    PARTNER = auto()
-
 
 class ConsensusNavigator:
 
