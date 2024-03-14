@@ -81,11 +81,17 @@ class Navigator:
     def join_contract(self, record):
         self.open()
         message = record['message']
-        partner = Partner(message['address'], message['agent'],
-                          self.identity_doc['address'], self.identity, None)
-        partner.connect(message['contract'], message['profile'])
+        reply = record['hash_code']
+        if self.get_contract(message['contract']):
+            self.logger.warning('%s ~ %-20s ~ %s ~ %s', record['hash_code'][0:10],
+                                'double join', self.identity, message['contract'])
+            reply = None
+        else:
+            partner = Partner(message['address'], message['agent'],
+                              self.identity_doc['address'], self.identity, None)
+            partner.connect(message['contract'], message['profile'])
         self.close()
-        return record['hash_code']
+        return reply
 
     def stamp_to_consensus(self, record):
         self.logger.info('%s ~ %-20s ~ %s', record['hash_code'][0:10], 'send to consensus', self.identity)

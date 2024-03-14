@@ -16,11 +16,11 @@ class ConsensusNavigator:
         self.identity = identity
         self.logger = logging.getLogger('Navigator')
         self.db = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
-        contract, partners = self.read_from_storage(mongo_port, hash_code)
-        self.contract = ContractDialog(self.identity, hash_code, contract, partners, redis_port)
+        contract, self.partners = self.read_from_storage(mongo_port, hash_code)
+        self.contract = ContractDialog(self.identity, hash_code, contract, self.partners, redis_port)
         self.delay_queue = deque()
         self.actions = {'PUT': {'deploy_contract': self.deploy_contract,
-                                'a2a_connect': self.process,
+                                'a2a_connect': self.a2a_connect,
                                 'a2a_reply_join': self.a2a_reply_join,
                                 'a2a_consent': self.a2a_consent,
                                 'int_partner': self.int_partner},
@@ -65,6 +65,12 @@ class ConsensusNavigator:
                 action(records[key], True)
         else:
             self.db.publish(self.identity, json.dumps({'contract': None, 'action': 'a2a_reply_join', 'reply': status}))
+
+    def a2a_connect(self, record, direct):
+        if self.contract.exists() and self.partners and record['message']['msg']['pid'] in self.partners:
+            self.logger.warning('%s ~ %-20s ~ %s', record['hash_code'][0:10], 'double a2a_connect', self.identity)
+        else:
+            self.process(record, direct)
 
     def process(self, record, direct):
         self.logger.info('%s ~ %-20s ~ %s ~ %s', record['hash_code'][0:10], 'start protocol', self.identity, record['action'])
