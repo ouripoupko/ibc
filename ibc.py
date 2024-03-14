@@ -75,7 +75,10 @@ def stream():
                     identity = message.get('channel').decode()
                     index = contracts.index(contract) if (contract and contract in contracts) else -1
                     if identity in generals or (index >= 0 and identities[index] == identity):
-                        logger.info('%s ~ %-20s ~ %s', contracts[index][0:10], 'update client', identity)
+                        logger.info('%s ~ %-20s ~ %s',
+                                    contracts[index][0:10] if index >= 0 else '----------',
+                                    'update client',
+                                    identity)
                         data['agent'] = identity
                         yield f'data: {json.dumps(data)}\n\n'
 

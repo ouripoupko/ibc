@@ -20,6 +20,7 @@ class PBFT:
         self.executioner = executioner
         self.logger = logging.getLogger('PBFT')
         if 'state' not in self.db.object_keys(None):
+            self.logger.info('%s ~ %-20s ~ %s ~ %s ~ %d', '----------', 'initialize redis', me, contract_name, 0)
             self.db.merge(None, {'requests': {}, 'receipts': {},
                                'state': {'view': 0,
                                          'index': 0,
@@ -35,6 +36,8 @@ class PBFT:
         self.receipts = self.db.get('receipts')
         self.contract_name = contract_name
         self.me = me
+        self.logger.info('%s ~ %-20s ~ %s ~ %s ~ %d', '----------', 'opening redis', self.me, self.contract_name,
+                         self.state['index'])
         self.partners = partners
         self.names = [partner.pid for partner in self.partners]
         self.names.append(self.me)
@@ -47,6 +50,8 @@ class PBFT:
         self.run_protocol()
 
     def close(self):
+        self.logger.info('%s ~ %-20s ~ %s ~ %s ~ %d', '----------', 'closing redis', self.me, self.contract_name,
+                         self.state['index'])
         self.db.set('state', self.state)
         self.db.set('receipts', self.receipts)
         self.db.set('requests', self.requests)
