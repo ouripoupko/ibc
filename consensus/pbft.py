@@ -243,6 +243,8 @@ class PBFT:
         while True:
             if self.state['step'] == ProtocolStep.REQUEST.name:
                 self.check_request()
+                if self.state['step'] == ProtocolStep.REQUEST.name:
+                    break
             if self.state['step'] == ProtocolStep.PRE_PREPARE.name:
                 self.check_pre_prepare()
             if self.state['step'] == ProtocolStep.PREPARE.name:
@@ -252,10 +254,8 @@ class PBFT:
             if self.state['step'] == ProtocolStep.DONE.name:
                 self.execute()
                 self.state['step'] = ProtocolStep.REQUEST.name
-            no_pre_prepare = not self.state['pre_prepare']
-            no_requests = not self.state['requests'] or not self.leader_is_me()
             in_the_middle = self.state['step'] != ProtocolStep.REQUEST.name
-            if (no_pre_prepare and no_requests) or in_the_middle or self.terminate:
+            if in_the_middle or self.terminate:
                 break
 
     def execute(self):

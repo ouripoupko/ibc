@@ -45,7 +45,6 @@ def main_loop():
     while True:
         message = db.brpop(['consensus'])[1]
         agent, record = json.loads(message)
-        logger.info('%s ~ %-20s ~ %s', record['hash_code'][0:10], 'send to agent', agent)
         db.lpush('consensus:'+agent, json.dumps(record))
         if agent not in agents or not agents[agent].is_alive():
             logger.info('%s ~ %-20s ~ %s', record['hash_code'][0:10], 'wake up', agent)
