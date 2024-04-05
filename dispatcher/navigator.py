@@ -67,7 +67,7 @@ class Navigator:
     def get_contracts(self, _record):
         self.open()
         reply = [{key: self.contracts_db[hash_code][key] for key in self.contracts_db[hash_code]
-                  if key in ['id', 'name', 'contract', 'code', 'protocol', 'default_app', 'pid', 'address']}
+                  if key in ['id', 'name', 'contract', 'code', 'protocol', 'default_app', 'pid', 'address', 'profile']}
                  for hash_code in (self.contracts_db if self.contracts_db else [])]
         self.close()
         return reply
