@@ -63,8 +63,7 @@ class ConsensusNavigator:
             for key in sorted(records.keys()):
                 action = self.actions[records[key]['type']].get(records[key]['action'])
                 action(records[key], True)
-        else:
-            self.db.publish(self.identity, json.dumps({'contract': None, 'action': 'a2a_reply_join', 'reply': status}))
+        self.db.publish(self.identity, json.dumps({'contract': None, 'action': 'a2a_reply_join', 'reply': status}))
 
     def a2a_connect(self, record, direct):
         if self.contract.exists() and self.partners and record['message']['msg']['pid'] in self.partners:
