@@ -46,21 +46,21 @@ sudo apt install python3-venv
 ```
 git clone https://github.com/ouripoupko/ibc.git
 cd ibc
+```
 6. Create a virtual environment
 ```
 python3 -m venv vibcenv
 source vibcenv/bin/activate
 ```
-8. Install dependencies
+7. Install dependencies
 ```
 pip install wheel
 pip install -r requirements.txt
 deactivate
 ```
-9. Create the following service files
-
-/etc/systemd/system/ibc.service:
-```
+8. Create the following service files
+```bash
+# /etc/systemd/system/ibc.service:
 [Unit]
 Description=Gunicorn instance to serve ibc
 After=network.target
