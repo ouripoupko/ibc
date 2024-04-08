@@ -60,7 +60,7 @@ deactivate
 ```
 8. Create the following service files
 #### /etc/systemd/system/ibc.service:
-```bash
+```
 [Unit]
 Description=Gunicorn instance to serve ibc
 After=network.target
@@ -78,7 +78,7 @@ ExecStart=/home/ouri_poupko/ibc/vibcenv/bin/gunicorn --workers 3 --bind unix:ibc
 WantedBy=multi-user.target
 ```
 
-### /etc/systemd/system/ibc.consensus.service
+#### /etc/systemd/system/ibc.consensus.service
 ```
 [Unit]
 PartOf=ibc.service
@@ -93,8 +93,9 @@ ExecStart=/home/ouri_poupko/ibc/vibcenv/bin/python3 consensus_service.py
 [Install]
 WantedBy=multi-user.target
 ```
-	/etc/systemd/system/ibc.execution.service
- 
+
+#### /etc/systemd/system/ibc.execution.service
+```
 [Unit]
 PartOf=ibc.service
 
@@ -107,19 +108,18 @@ ExecStart=/home/ouri_poupko/ibc/vibcenv/bin/python3 execution_service.py
 
 [Install]
 WantedBy=multi-user.target
+```
 
-7. Run the services
+9. Run the services
+```
+sudo systemctl start ibc
+sudo systemctl enable ibc
+sudo systemctl status ibc
+```
+10. Create the Nginx site
 
-	sudo systemctl start ibc
-
-	sudo systemctl enable ibc
-
-	sudo systemctl status ibc
-
-8. Create the Nginx site
-
-	/etc/nginx/sites-available/ibc:
-
+#### /etc/nginx/sites-available/ibc:
+```
 server {
     listen 80;
     listen [::]:80;
@@ -191,28 +191,29 @@ server {
         return 301 /gloki/$is_args$args;
     }
 }
+```
 
-9. Activate it
+11. Activate it
+```
+sudo ln -s /etc/nginx/sites-available/ibc /etc/nginx/sites-enabled
+sudo rm /etc/nginx/sites-enabled/default
+```
 
-	sudo ln -s /etc/nginx/sites-available/ibc /etc/nginx/sites-enabled
+12. Get a certificate
+```
+sudo apt install python3-certbot-nginx
+sudo certbot --nginx -d gdi.gloki.contact
+```
 
-	sudo rm /etc/nginx/sites-enabled/default
-
-11. Get a certificate
-
-	sudo apt install python3-certbot-nginx
-
-	sudo certbot --nginx -d gdi.gloki.contact
-
-12. Create the following files
-
-	/etc/nginx/snippets/self-signed.conf:
-
+13. Create the following files
+#### /etc/nginx/snippets/self-signed.conf:
+```
 ssl_certificate /etc/ssl/certs/nginx-selfsigned.crt;
 ssl_certificate_key /etc/ssl/private/nginx-selfsigned.key;
+```
 
-	/etc/nginx/snippets/ssl-params.conf:
-
+ #### /etc/nginx/snippets/ssl-params.conf:
+```
 ssl_protocols TLSv1.3;
 ssl_prefer_server_ciphers on;
 ssl_dhparam /etc/nginx/dhparam.pem; 
@@ -231,10 +232,10 @@ resolver_timeout 5s;
 add_header X-Frame-Options DENY;
 add_header X-Content-Type-Options nosniff;
 add_header X-XSS-Protection "1; mode=block";
+```
 
-
-13. Modify the site conf (It seems certbot does it by itself)
-
+14. Modify the site conf (It seems certbot does it by itself)
+```
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
@@ -316,16 +317,16 @@ server {
 
     return 301 https://$server_name$request_uri;
 }
+```
 
 14. Add Nginx user (www-data) to your group
+```
+sudo usermod -a -G ouri_poupko www-data
+id www-data
+```
 
-	sudo usermod -a -G ouri_poupko www-data
-
-	id www-data
-
-16. Restart Nginx
-
-	sudo nginx -t
-
-	sudo systemctl restart nginx
-
+15. Restart Nginx
+```
+sudo nginx -t
+sudo systemctl restart nginx
+```
