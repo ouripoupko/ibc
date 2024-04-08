@@ -59,8 +59,8 @@ pip install -r requirements.txt
 deactivate
 ```
 8. Create the following service files
-```bash
 # /etc/systemd/system/ibc.service:
+```bash
 [Unit]
 Description=Gunicorn instance to serve ibc
 After=network.target
@@ -77,8 +77,8 @@ ExecStart=/home/ouri_poupko/ibc/vibcenv/bin/gunicorn --workers 3 --bind unix:ibc
 [Install]
 WantedBy=multi-user.target
 ```
-	/etc/systemd/system/ibc.consensus.service
-
+### /etc/systemd/system/ibc.consensus.service
+```
 [Unit]
 PartOf=ibc.service
 
@@ -91,7 +91,7 @@ ExecStart=/home/ouri_poupko/ibc/vibcenv/bin/python3 consensus_service.py
 
 [Install]
 WantedBy=multi-user.target
-
+```
 	/etc/systemd/system/ibc.execution.service
  
 [Unit]
