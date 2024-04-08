@@ -338,6 +338,15 @@ server {
     return 301 https://$server_name$request_uri;
 }
 
-14. Restart Nginx
+14. Add Nginx user (www-data) to your group
+
+	sudo usermod -a -G ouri_poupko www-data
+
+	id www-data
+
+16. Restart Nginx
 
 	sudo nginx -t
+
+	sudo systemctl restart nginx
+
