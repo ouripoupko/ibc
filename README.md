@@ -15,73 +15,52 @@ sudo apt update
 sudo apt install nginx
 ```
 2. Install MongoDB
-
-	sudo apt-get install gnupg curl
-
-	curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
-
-	echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
-
-	sudo apt-get update
-
-	sudo apt-get install -y mongodb-org
-
-	sudo systemctl daemon-reload
-
-	sudo systemctl start mongod
-
-	sudo systemctl enable mongod
-
-	sudo systemctl status mongod
-
+```
+sudo apt-get install gnupg curl
+curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+sudo apt-get update
+sudo apt-get install -y mongodb-org
+sudo systemctl daemon-reload
+sudo systemctl start mongod
+sudo systemctl enable mongod
+sudo systemctl status mongod
+```
 3. Install redis stack server
-
-	curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
-
-	sudo chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg
-
-	echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
-
-	sudo apt-get update
-
-	sudo apt-get install redis-stack-server
-
-	sudo systemctl start redis-stack-server.service
-
-	sudo systemctl enable redis-stack-server.service
-
-	sudo systemctl status redis-stack-server.service
-
-5. Install python
-
-	sudo apt install python3-pip python3-dev build-essential libssl-dev libffi-dev python3-setuptools
-
-	sudo apt install python3-venv
-
-6. Install ibc
-
-	git clone https://github.com/ouripoupko/ibc.git
-
-	cd ibc
-
-7. Create a virtual environment
-
-	python3 -m venv vibcenv
-
-	source vibcenv/bin/activate
-
+```
+curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
+sudo chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
+sudo apt-get update
+sudo apt-get install redis-stack-server
+sudo systemctl start redis-stack-server.service
+sudo systemctl enable redis-stack-server.service
+sudo systemctl status redis-stack-server.service
+```
+4. Install python
+```
+sudo apt install python3-pip python3-dev build-essential libssl-dev libffi-dev python3-setuptools
+sudo apt install python3-venv
+```
+5. Install ibc
+```
+git clone https://github.com/ouripoupko/ibc.git
+cd ibc
+6. Create a virtual environment
+```
+python3 -m venv vibcenv
+source vibcenv/bin/activate
+```
 8. Install dependencies
-
-	pip install wheel
-
-	pip install -r requirements.txt
-
-	deactivate
-
+```
+pip install wheel
+pip install -r requirements.txt
+deactivate
+```
 9. Create the following service files
 
-	/etc/systemd/system/ibc.service:
-
+/etc/systemd/system/ibc.service:
+```
 [Unit]
 Description=Gunicorn instance to serve ibc
 After=network.target
@@ -97,7 +76,7 @@ ExecStart=/home/ouri_poupko/ibc/vibcenv/bin/gunicorn --workers 3 --bind unix:ibc
 
 [Install]
 WantedBy=multi-user.target
-
+```
 	/etc/systemd/system/ibc.consensus.service
 
 [Unit]
