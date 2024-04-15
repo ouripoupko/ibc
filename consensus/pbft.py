@@ -276,3 +276,4 @@ class PBFT:
 
 # should wait on time out from request to change view
 # disregard requests with timestamp older than already committed timestamp
+# the terminate mechanism is a land mine due to its complexity and because it is reset on timeout

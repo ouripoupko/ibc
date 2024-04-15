@@ -67,6 +67,7 @@ class ContractDialog:
     def consent(self, record):
         self.protocol.handle_consent(record)
 
-    def partner(self, agent, address):
-        self.partners_db[agent] = address
+    def partner(self, agent, address, should_partner = True):
+        if should_partner:
+            self.partners_db[agent] = address
         self.create()

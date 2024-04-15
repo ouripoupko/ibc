@@ -80,9 +80,8 @@ class ConsensusNavigator:
 
     def int_partner(self, record, _direct):
         self.logger.info('%s ~ %-20s ~ %s ~ %s', record['hash_code'][0:10], 'update partner', self.identity, record['message']['msg']['pid'])
-        if record['status']:
-            message = record['message']['msg']
-            self.contract.partner(message['pid'], message['address'])
+        message = record['message']['msg']
+        self.contract.partner(message['pid'], message['address'], record['status'])
 
     def a2a_consent(self, record, _direct):
         if not self.contract.exists():

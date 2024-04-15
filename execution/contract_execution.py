@@ -46,10 +46,13 @@ class ContractExecution:
         self.ledger.log(record)
         message = record['message']
         msg = message['msg']
-        approve = self.state.call(message['to'],
-                                 'approve_partner',
-                                 {'values': {'partner': msg['pid']}},
-                                 record.get('timestamp', None))
+        if msg['pid'] in self.partners_db:
+            approve = False
+        else:
+            approve = self.state.call(message['to'],
+                                      'approve_partner',
+                                      {'values': {'partner': msg['pid']}},
+                                      record.get('timestamp', None))
         if approve:
             self.connect(msg['address'], msg['pid'], msg['profile'])
         if message['to'] == self.me:
