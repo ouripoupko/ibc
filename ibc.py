@@ -85,7 +85,9 @@ def stream():
             else:
                 yield "data: \n\n"
 
-    return Response(event_stream(), mimetype="text/event-stream")
+    response = Response(event_stream(), mimetype="text/event-stream")
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
 
 
 class LoggingMiddleware(object):
