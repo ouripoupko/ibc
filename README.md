@@ -37,6 +37,12 @@ sudo systemctl start redis-stack-server.service
 sudo systemctl enable redis-stack-server.service
 sudo systemctl status redis-stack-server.service
 ```
+Add the line
+```
+stop-writes-on-bgsave-error no
+```
+to /etc/redis-server.conf
+
 4. Install python
 ```
 sudo apt install python3-pip python3-dev build-essential libssl-dev libffi-dev python3-setuptools
