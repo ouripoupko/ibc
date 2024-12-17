@@ -37,12 +37,26 @@ sudo systemctl start redis-stack-server.service
 sudo systemctl enable redis-stack-server.service
 sudo systemctl status redis-stack-server.service
 ```
-Add the line
+Make sure redis can write to its working directory
 ```
-stop-writes-on-bgsave-error no
+sudo chown redis:redis /var/lib/redis-stack
 ```
-to /etc/redis-server.conf
+Change the service conf file (/etc/systemd/system/redis-stack.service) to point to this folder
+```
+[Unit]
+Description=Redis Stack Server
+After=network.target
 
+[Service]
+ExecStart=/usr/bin/redis-stack-server
+WorkingDirectory=/var/lib/redis-stack
+Restart=always
+User=redis
+Group=redis
+
+[Install]
+WantedBy=multi-user.target
+```
 4. Install python
 ```
 sudo apt install python3-pip python3-dev build-essential libssl-dev libffi-dev python3-setuptools
