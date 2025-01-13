@@ -1,6 +1,7 @@
 # ibc
 Identity Block Chain <br>
 ---
+The Identity Block Chain is an implementation of the [self sovereign digital agent](https://ieeexplore.ieee.org/document/9912178).
 ## Prerequisits
 
 Ubuntu 22.04
