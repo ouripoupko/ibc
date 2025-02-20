@@ -17,8 +17,9 @@ class Navigator:
         self.redis_port = redis_port
         self.db = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
         self.actions = {'GET':  {'is_exist_agent': self.is_exist_agent,
-                                 'get_contracts': self.get_contracts},
-                        'PUT':  {'register_agent': self.register_agent,
+                                 'get_contracts': self.get_contracts,
+                                 'get_contract': self.get_contract},
+        'PUT':  {'register_agent': self.register_agent,
                                  'deploy_contract': self.deploy_contract,
                                  'join_contract': self.join_contract,
                                  'a2a_connect': self.stamp_to_consensus,
@@ -47,7 +48,7 @@ class Navigator:
     def close(self):
         self.storage_bridge.disconnect()
 
-    def get_contract(self, hash_code):
+    def get_contract_object(self, hash_code):
         if not self.contracts_db or hash_code not in self.contracts_db:
             return None
         contract = ContractView(self.contracts_db[hash_code], hash_code, self, self.ledger)
@@ -72,6 +73,16 @@ class Navigator:
         self.close()
         return reply
 
+    def get_contract(self, record):
+        self.open()
+        reply = {}
+        hash_code = record['contract']
+        if hash_code and self.contracts_db and hash_code in self.contracts_db:
+            reply = {key: self.contracts_db[hash_code][key] for key in self.contracts_db[hash_code]
+                if key in ['id', 'name', 'contract', 'code', 'protocol', 'default_app', 'pid', 'address', 'profile']}
+        self.close()
+        return reply
+
     def deploy_contract(self, record):
         record['contract'] = record['hash_code']
         self.logger.info('%s ~ %-20s ~ %s', record['hash_code'][0:10], 'send to consensus', self.identity)
@@ -82,7 +93,7 @@ class Navigator:
         self.open()
         message = record['message']
         reply = record['hash_code']
-        if self.get_contract(message['contract']):
+        if self.get_contract_object(message['contract']):
             self.logger.warning('%s ~ %-20s ~ %s ~ %s', record['hash_code'][0:10],
                                 'double join', self.identity, message['contract'])
             reply = None
@@ -103,7 +114,7 @@ class Navigator:
 
     def contract_read(self, record):
         self.open()
-        contract = self.get_contract(record['contract'])
+        contract = self.get_contract_object(record['contract'])
         if not contract:
             reply = {'message': 'no such contract'}
         else:
@@ -114,7 +125,7 @@ class Navigator:
     def a2a_get_ledger(self, record):
         self.open()
         index = record['message']['msg']['index']
-        contract = self.get_contract(record['contract'])
+        contract = self.get_contract_object(record['contract'])
         if not contract:
             return {'message': 'no such contract'}
         reply = contract.get_ledger(index)

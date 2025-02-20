@@ -3,6 +3,7 @@ from datetime import datetime
 import hashlib
 import random
 import logging
+from statistics import median
 
 def hashcode(something):
     return hashlib.sha256(str(something).encode('utf-8')).hexdigest()
@@ -65,6 +66,9 @@ class State:
                        'timestamp': self.current_timestamp}
         return contract.call(fake_record, False)
 
+    def parameters(self, parameter):
+        return (self.contract_doc['medians'] or {}).get(parameter, 0)
+
     def run(self, caller, timestamp):
         self.caller = caller
         self.current_timestamp = timestamp
@@ -73,10 +77,11 @@ class State:
              {'__builtins__':
                   {'__build_class__': __build_class__, '__name__': __name__,
                    'str': str, 'int': int, 'list': list, 'range': range, 'dict': dict, 'len': len,
+                   'print': print, 'type': type, 'set': set,
+                   'enumerate': enumerate, 'abs': abs, 'sum': sum, 'min': min, 'round': round,
                    'master': self.master, 'timestamp': self.timestamp, 'Storage': self.get_storage,
-                   'partners': self.get_partner_keys, 'print': print, 'type': type, 'set': set,
-                   'enumerate': enumerate, 'abs': abs, 'sum': sum, 'min': min, 'elapsed_time': elapsed_time,
-                   'hashcode': hashcode, 'random': self.random, 'read': self.read}},
+                   'partners': self.get_partner_keys, 'elapsed_time': elapsed_time,
+                   'hashcode': hashcode, 'random': self.random, 'read': self.read, 'parameters': self.parameters}},
              empty_locals)
         class_object = list(empty_locals.values())[0]
         self.class_name = class_object.__name__
@@ -91,9 +96,29 @@ class State:
                         for name in method_names]
         return "ready"
 
+    def update_parameters(self, parameters):
+        before_parameters_update = getattr(self.obj, 'before_parameters_update', None)
+        if before_parameters_update:
+            before_parameters_update()
+
+        all_parameters = self.contract_doc['parameters'] or {}
+        medians = self.contract_doc['medians'] or {}
+        for key, value in parameters.items():
+            if key not in all_parameters:
+                all_parameters[key] = {}
+            all_parameters[key][self.caller] = value
+            medians[key] = median(all_parameters[key].values())
+        self.contract_doc.update({'parameters': all_parameters, 'medians': medians})
+
+        after_parameters_update = getattr(self.obj, 'after_parameters_update', None)
+        if after_parameters_update:
+            after_parameters_update()
+
     def call(self, caller, method, msg, timestamp):
         self.caller = caller
         self.current_timestamp = timestamp
+        if 'parameters' in msg:
+            self.update_parameters(msg['parameters'])
         m = getattr(self.obj, method, None)
         if m:
             try:
@@ -106,3 +131,8 @@ class State:
                 return self.get_partners()
             elif method == 'approve_partner':
                 return True
+            elif method == 'get_parameters':
+                parameters = self.contract_doc['parameters'] or {}
+                medians = self.contract_doc['medians'] or {}
+                return {'parameters': {key: parameters[key].get(self.caller) for key in parameters},
+                        'medians': medians}
