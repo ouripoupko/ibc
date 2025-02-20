@@ -1,6 +1,7 @@
 # ibc
 Identity Block Chain <br>
 ---
+The Identity Block Chain is an implementation of the [self sovereign digital agent](https://ieeexplore.ieee.org/document/9912178).
 ## Prerequisits
 
 Ubuntu 22.04
@@ -36,6 +37,26 @@ sudo apt-get install redis-stack-server
 sudo systemctl start redis-stack-server.service
 sudo systemctl enable redis-stack-server.service
 sudo systemctl status redis-stack-server.service
+```
+Make sure redis can write to its working directory
+```
+sudo chown redis:redis /var/lib/redis-stack
+```
+Change the service conf file (/etc/systemd/system/redis-stack.service) to point to this folder
+```
+[Unit]
+Description=Redis Stack Server
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/redis-stack-server
+WorkingDirectory=/var/lib/redis-stack
+Restart=always
+User=redis
+Group=redis
+
+[Install]
+WantedBy=multi-user.target
 ```
 4. Install python
 ```
