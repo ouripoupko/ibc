@@ -351,3 +351,8 @@ id www-data
 sudo nginx -t
 sudo systemctl restart nginx
 ```
+16. Check and renew certificate
+```
+sudo certbot certificates
+tbd
+```
