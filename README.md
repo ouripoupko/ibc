@@ -354,5 +354,5 @@ sudo systemctl restart nginx
 16. Check and renew certificate
 ```
 sudo certbot certificates
-tbd
+sudo certbot renew
 ```
