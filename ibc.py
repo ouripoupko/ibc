@@ -66,6 +66,7 @@ def stream():
         db = Redis(host=os.getenv('REDIS_GATEWAY'), port=redis_port, db=0)
         channel = db.pubsub()
         channel.subscribe(*identities)
+        yield "data: \n\n"
         while True:
             message = channel.get_message(timeout=10)
             if message:
