@@ -21,6 +21,5 @@ ENV REDIS_GATEWAY=redis \
 
 EXPOSE 2611
 
-# Default process is the web app; compose.yml overrides the command for the
-# consensus and execution services.
-CMD ["gunicorn", "-b", "0.0.0.0:2611", "--workers", "3", "--worker-class", "gevent", "--access-logfile", "-", "wsgi:app"]
+# Starts the web app, the consensus service and the execution service.
+CMD ["bash", "docker-start.sh"]

@@ -6,18 +6,6 @@
 
 name: ibc
 
-x-ibc: &ibc
-  image: ghcr.io/ouripoupko/ibc:latest
-  restart: unless-stopped
-  environment:
-    REDIS_GATEWAY: redis
-    MONGODB_GATEWAY: mongo
-  depends_on:
-    mongo:
-      condition: service_healthy
-    redis:
-      condition: service_healthy
-
 services:
   mongo:
     image: mongo:7
@@ -41,31 +29,24 @@ services:
       timeout: 5s
       retries: 20
 
-  # Web app (gunicorn)
+  # Web app, consensus service and execution service in one container.
   ibc:
-    <<: *ibc
+    image: ghcr.io/ouripoupko/ibc:latest
     build: .
+    restart: unless-stopped
+    init: true
+    environment:
+      REDIS_GATEWAY: redis
+      MONGODB_GATEWAY: mongo
     ports:
       # Bound to localhost only. Change to "2611:2611" to accept connections
       # from other machines.
       - "127.0.0.1:2611:2611"
-
-  # The consensus and execution services share the web app's network namespace,
-  # so agent addresses such as http://localhost:2611 reach the node from every
-  # process, exactly as when all three run on one host.
-  consensus:
-    <<: *ibc
-    command: ["python", "consensus_service.py"]
-    network_mode: "service:ibc"
     depends_on:
-      - ibc
-
-  execution:
-    <<: *ibc
-    command: ["python", "execution_service.py"]
-    network_mode: "service:ibc"
-    depends_on:
-      - ibc
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   mongo-data:

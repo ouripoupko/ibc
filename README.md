@@ -8,6 +8,11 @@ For developers who build apps on top of ibc and need a local node. This runs ibc
 
 Requires [Docker](https://docs.docker.com/get-docker/) with the Compose plugin.
 
+On Linux, if docker commands fail with `permission denied ... docker.sock`, add your user to the `docker` group, then log out and back in:
+```
+sudo usermod -aG docker $USER
+```
+
 ### Install
 
 You only need the `compose.yml` file:
@@ -37,9 +42,9 @@ docker compose stop                  # stop the node
 docker compose start                 # start it again
 docker compose down -v               # remove the node and delete all its data
 docker compose logs -f ibc           # HTTP requests as they arrive
-docker compose exec ibc tail -f dispatcher.log        # web app log
-docker compose exec consensus tail -f consensus.log   # consensus log
-docker compose exec execution tail -f execution.log   # execution log
+docker compose exec ibc tail -f dispatcher.log    # web app log
+docker compose exec ibc tail -f consensus.log     # consensus log
+docker compose exec ibc tail -f execution.log     # execution log
 ```
 
 ### Build the image yourself
