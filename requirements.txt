@@ -2,7 +2,7 @@ Flask
 Flask-Cors
 pymongo
 requests
-redis
+redis<8
 gunicorn
 gevent
 packaging
