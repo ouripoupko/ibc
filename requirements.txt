@@ -2,7 +2,7 @@ Flask
 Flask-Cors
 pymongo
 requests
-redis<8
+redis<8  # redis-py 8 adds a 5s default socket timeout that crashes the services' blocking brpop
 gunicorn
 gevent
 packaging
