@@ -2,6 +2,53 @@
 Identity Block Chain <br>
 ---
 The Identity Block Chain is an implementation of the [self sovereign digital agent](https://ieeexplore.ieee.org/document/9912178).
+## Run with Docker
+
+For developers who build apps on top of ibc and need a local node. This runs ibc together with MongoDB and Redis. The API is served directly by gunicorn at `http://localhost:2611` (no Nginx, no HTTPS).
+
+Requires [Docker](https://docs.docker.com/get-docker/) with the Compose plugin.
+
+### Install
+
+You only need the `compose.yml` file:
+```
+mkdir ibc && cd ibc
+curl -O https://raw.githubusercontent.com/ouripoupko/ibc/main/compose.yml
+docker compose up -d
+```
+Check that everything is running:
+```
+docker compose ps
+```
+When your app registers an agent, use `http://localhost:2611` as the node address.
+
+### Update
+From the folder that contains `compose.yml`:
+```
+curl -O https://raw.githubusercontent.com/ouripoupko/ibc/main/compose.yml
+docker compose pull
+docker compose up -d
+```
+Your data is kept in Docker volumes and survives updates.
+
+### Useful commands
+```
+docker compose stop                  # stop the node
+docker compose start                 # start it again
+docker compose down -v               # remove the node and delete all its data
+docker compose logs -f ibc           # HTTP requests as they arrive
+docker compose exec ibc tail -f dispatcher.log        # web app log
+docker compose exec consensus tail -f consensus.log   # consensus log
+docker compose exec execution tail -f execution.log   # execution log
+```
+
+### Build the image yourself
+```
+git clone https://github.com/ouripoupko/ibc.git
+cd ibc
+docker compose up -d --build
+```
+
 ## Prerequisits
 
 Ubuntu 22.04

@@ -1,0 +1,12 @@
+.git
+.github
+venv
+.venv
+vibcenv
+__pycache__
+*.pyc
+*.log
+instance
+compose.yml
+Dockerfile
+.dockerignore

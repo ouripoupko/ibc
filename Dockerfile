@@ -1,9 +1,26 @@
-# Dockerfile
-FROM python:3.10
-COPY requirements.txt /
-RUN pip3 install -r /requirements.txt
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
 COPY . .
-ENV REDIS_GATEWAY 172.19.0.2
-ENV MONGODB_GATEWAY 172.19.0.4
-ENV MY_ADDRESS http://localhost:8000/
-CMD ./run.sh
+
+# Run as an unprivileged user. The app writes its log files to the working directory.
+RUN useradd --create-home --uid 1000 ibc && chown -R ibc:ibc /app
+USER ibc
+
+# Redis and MongoDB hosts. Override these at runtime (compose.yml sets them).
+ENV REDIS_GATEWAY=redis \
+    MONGODB_GATEWAY=mongo
+
+EXPOSE 2611
+
+# Default process is the web app; compose.yml overrides the command for the
+# consensus and execution services.
+CMD ["gunicorn", "-b", "0.0.0.0:2611", "--workers", "3", "--worker-class", "gevent", "--access-logfile", "-", "wsgi:app"]

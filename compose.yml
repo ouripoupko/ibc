@@ -1,0 +1,72 @@
+# Local ibc node for app developers.
+# The API is served at http://localhost:2611
+#
+#   docker compose up -d            # start (pulls the published image)
+#   docker compose up -d --build    # start with an image built from this repo
+
+name: ibc
+
+x-ibc: &ibc
+  image: ghcr.io/ouripoupko/ibc:latest
+  restart: unless-stopped
+  environment:
+    REDIS_GATEWAY: redis
+    MONGODB_GATEWAY: mongo
+  depends_on:
+    mongo:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:8
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Web app (gunicorn)
+  ibc:
+    <<: *ibc
+    build: .
+    ports:
+      # Bound to localhost only. Change to "2611:2611" to accept connections
+      # from other machines.
+      - "127.0.0.1:2611:2611"
+
+  # The consensus and execution services share the web app's network namespace,
+  # so agent addresses such as http://localhost:2611 reach the node from every
+  # process, exactly as when all three run on one host.
+  consensus:
+    <<: *ibc
+    command: ["python", "consensus_service.py"]
+    network_mode: "service:ibc"
+    depends_on:
+      - ibc
+
+  execution:
+    <<: *ibc
+    command: ["python", "execution_service.py"]
+    network_mode: "service:ibc"
+    depends_on:
+      - ibc
+
+volumes:
+  mongo-data:
+  redis-data:
